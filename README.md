@@ -10,8 +10,8 @@ Built with React (Vite) and [Supabase](https://supabase.com) (free tier) for acc
 | --- | --- |
 | Visitors | Home page, mentor list with filters, mentor profiles, live sessions with free seat registration, Journal with search and topics, story pages with share and an optional video, a Videos page (YouTube talks and Shorts), Ask a mentor, Write for the Journal, email subscribe (every story or weekly digest) |
 | Students | Sign up / log in / reset password, request a session from a mentor, follow request status, see the meeting link and the mentor's note, cancel a pending request, edit their profile |
-| Mentors | Apply as a mentor (shown publicly only after admin approval), edit their public profile (photo, bio, what they help with), approve or decline requests, add a meeting link and a note, mark sessions as done |
-| Admins | Approve mentors and manage people, see all requests, create and edit live sessions and download registrations, write and publish Journal stories, add YouTube videos, answer and publish student questions, review story ideas, download the subscriber list as CSV |
+| Mentors | Apply as a mentor (shown publicly only after admin approval), edit their public profile (upload a photo, bio, what they help with), approve or decline requests, add a meeting link and a note, mark sessions as done, write Journal stories and send them for review |
+| Admins | Approve mentors and manage people, see all requests, create and edit live sessions and download registrations, write and publish Journal stories in a full-page editor (paste images straight in), add YouTube videos, answer and publish student questions, review story ideas, download the subscriber list as CSV |
 
 Security is enforced in the database with row-level security: students can't see each other's requests, nobody can make themselves an admin, mentors can't edit a student's message, and form data such as subscribers and registrations is visible only to admins.
 
@@ -72,7 +72,9 @@ Everything else, including mentors, sessions, stories, videos and answers, is ma
 ## Good to know
 
 - **Emails.** Supabase sends sign-up confirmation and password-reset emails. The site does **not** send newsletters or session reminders by itself: download subscribers and registrations as CSV from the admin dashboard and send them from your own email or a mailing tool. Supabase's built-in email has a low hourly limit; for real traffic, connect your own SMTP in **Authentication → Emails → SMTP settings**.
-- **Images.** Mentor photos and Journal covers are image links (for example from Google Drive set to public, Imgur or Cloudinary).
+- **Images.** Upload, paste (Ctrl + V) or drag images straight in: mentor photos, story covers and pictures inside stories. Large photos are shrunk in the browser before upload and stored in Supabase Storage (bucket `images`, created by `schema.sql`; the free plan includes 1 GB).
+- **Writing.** Admins and approved mentors write in a full-page editor (Dashboard → Journal / My stories → Write a new story) with headings, bold, lists, quotes, links, images and YouTube videos. Drafts save automatically. Mentors send stories for review; admins publish.
+- **Updating the site later.** If a new version changes `schema.sql`, just run the whole file again in the SQL Editor. It keeps your data.
 - **Videos.** Paste any YouTube link in Admin → Videos. The player loads from youtube-nocookie.com only after a visitor clicks play.
 
 ## Project structure
@@ -80,7 +82,8 @@ Everything else, including mentors, sessions, stories, videos and answers, is ma
 All files sit at the top level, so the repository can be uploaded through the GitHub website without folders. The only folder is `.github/workflows/`, which holds the deployment file.
 
 - `main.jsx`: app entry and page routes
-- `Layout.jsx`, `Bits.jsx`, `Icons.jsx`, `Markdown.jsx`: shared parts
+- `Layout.jsx`, `Bits.jsx`, `Icons.jsx`, `Markdown.jsx`, `RichText.jsx`: shared parts
+- `Editor.jsx`, `RichEditor.jsx`, `ImageInput.jsx`: story editor and image upload
 - `Home.jsx`, `Mentors.jsx`, `MentorProfile.jsx`, `Sessions.jsx`, `Journal.jsx`, `Post.jsx`, `Videos.jsx`, `Ask.jsx`, `Write.jsx`, `AccountPages.jsx`, `Dashboard.jsx`, `NotFound.jsx`: pages
 - `api.js`: data layer (Supabase or demo mode); `auth.jsx`: login state; `util.js`: helpers
 - `config.js`: social links and contact email; `seed.js`: demo content and studio words

@@ -1,6 +1,7 @@
 -- ArchMentor database schema for Supabase
--- Run this whole file once in Supabase → SQL Editor → New query → Run.
--- It is safe to run again: it drops and recreates policies and triggers.
+-- Run this whole file in Supabase → SQL Editor → New query → Run.
+-- It is safe to run again (also after updating the site): it keeps your data,
+-- adds anything new, and recreates the security rules.
 
 -- ============================================================
 -- Tables
@@ -76,6 +77,9 @@ create table if not exists public.posts (
   created_at   timestamptz not null default now()
 );
 
+alter table public.posts add column if not exists author_id uuid references public.profiles (id) on delete set null;
+alter table public.posts add column if not exists submitted boolean not null default false;  -- mentor sent it for review
+
 create table if not exists public.videos (
   id          uuid primary key default gen_random_uuid(),
   youtube_id  text not null,             -- the part after v= or /shorts/
@@ -123,6 +127,11 @@ create table if not exists public.subscribers (
 create or replace function public.is_admin()
 returns boolean language sql stable security definer set search_path = public as $$
   select exists (select 1 from public.profiles where id = auth.uid() and role = 'admin');
+$$;
+
+create or replace function public.is_approved_mentor()
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.profiles where id = auth.uid() and role = 'mentor' and approved);
 $$;
 
 -- New sign-up → profile row. Role comes from sign-up metadata, limited to student/mentor.
@@ -244,9 +253,19 @@ drop policy if exists "sessions: admin write" on public.sessions;
 create policy "sessions: admin write" on public.sessions for all using (public.is_admin()) with check (public.is_admin());
 
 drop policy if exists "posts: read published" on public.posts;
-create policy "posts: read published" on public.posts for select using (published or public.is_admin());
 drop policy if exists "posts: admin write" on public.posts;
-create policy "posts: admin write" on public.posts for all using (public.is_admin()) with check (public.is_admin());
+create policy "posts: read published" on public.posts for select
+  using (published or public.is_admin() or author_id = auth.uid());
+drop policy if exists "posts: write" on public.posts;
+create policy "posts: write" on public.posts for insert
+  with check (public.is_admin() or (author_id = auth.uid() and not published and public.is_approved_mentor()));
+drop policy if exists "posts: edit" on public.posts;
+create policy "posts: edit" on public.posts for update
+  using (public.is_admin() or (author_id = auth.uid() and not published))
+  with check (public.is_admin() or (author_id = auth.uid() and not published));
+drop policy if exists "posts: delete" on public.posts;
+create policy "posts: delete" on public.posts for delete
+  using (public.is_admin() or (author_id = auth.uid() and not published));
 
 drop policy if exists "videos: read published" on public.videos;
 create policy "videos: read published" on public.videos for select using (published or public.is_admin());
@@ -289,3 +308,22 @@ returns int language sql stable security definer set search_path = public as $$
   select count(*)::int from public.registrations where session_id = sid;
 $$;
 grant execute on function public.session_seat_count(uuid) to anon, authenticated;
+
+-- ============================================================
+-- Image uploads (Supabase Storage): public bucket "images"
+-- Signed-in users upload into a folder named after their user id.
+-- ============================================================
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('images', 'images', true, 10485760, array['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
+on conflict (id) do update set public = true, file_size_limit = excluded.file_size_limit, allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists "images: public read" on storage.objects;
+create policy "images: public read" on storage.objects for select
+  using (bucket_id = 'images');
+drop policy if exists "images: upload own folder" on storage.objects;
+create policy "images: upload own folder" on storage.objects for insert to authenticated
+  with check (bucket_id = 'images' and (storage.foldername(name))[1] = auth.uid()::text);
+drop policy if exists "images: delete own or admin" on storage.objects;
+create policy "images: delete own or admin" on storage.objects for delete to authenticated
+  using (bucket_id = 'images' and ((storage.foldername(name))[1] = auth.uid()::text or public.is_admin()));

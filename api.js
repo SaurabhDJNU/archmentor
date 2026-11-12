@@ -201,7 +201,7 @@ export async function listPosts() {
 }
 
 export async function getPost(slug) {
-  if (DEMO) return delay(db.posts.find((p) => p.slug === slug && (p.published || isAdmin())) || null);
+  if (DEMO) return delay(db.posts.find((p) => p.slug === slug && (p.published || isAdmin() || (p.author_id && p.author_id === demoUserId()))) || null);
   return ok(await sb.from('posts').select('*').eq('slug', slug).maybeSingle());
 }
 
@@ -268,5 +268,89 @@ export async function adminDelete(table, id) {
   if (!TABLES.includes(table)) fail('Unknown table');
   if (DEMO) { if (!isAdmin()) fail('Admins only.'); db[table] = db[table].filter((x) => x.id !== id); save(); return delay(true); }
   ok(await sb.from(table).delete().eq('id', id));
+  return true;
+}
+
+// ================================================================ IMAGES
+// Shrinks big photos in the browser before upload (max 1600 px, WebP), so pages stay fast.
+export async function prepareImage(file, maxSize = 1600) {
+  if (!file || !file.type.startsWith('image/')) fail('Please choose an image file.');
+  if (file.type === 'image/gif' || file.type === 'image/svg+xml') return file;
+  const bitmap = await createImageBitmap(file).catch(() => null);
+  if (!bitmap) return file;
+  const scale = Math.min(1, maxSize / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  const blob = await new Promise((r) => canvas.toBlob(r, 'image/webp', 0.85));
+  return blob && blob.size < file.size ? blob : file;
+}
+
+const readAsDataUrl = (blob) => new Promise((resolve, reject) => {
+  const r = new FileReader(); r.onload = () => resolve(r.result); r.onerror = reject; r.readAsDataURL(blob);
+});
+
+// Upload an image and return its public URL.
+export async function uploadImage(file) {
+  const user = await getUser();
+  if (!user) fail('Please log in to upload images.');
+  if (file.size > 15 * 1024 * 1024) fail('That image is larger than 15 MB. Please choose a smaller one.');
+  const blob = await prepareImage(file, DEMO ? 1000 : 1600);
+  if (DEMO) return readAsDataUrl(blob); // demo: kept inside this browser only
+  const ext = blob.type === 'image/webp' ? 'webp' : blob.type === 'image/png' ? 'png' : blob.type === 'image/gif' ? 'gif' : 'jpg';
+  const path = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  ok(await sb.storage.from('images').upload(path, blob, { contentType: blob.type || 'image/jpeg', cacheControl: '31536000' }));
+  return sb.storage.from('images').getPublicUrl(path).data.publicUrl;
+}
+
+// ================================================================ STORIES (editor)
+// Admins can write and publish. Approved mentors can write drafts and submit them for review.
+export async function listMyStories() {
+  const user = await getUser(); if (!user) return [];
+  if (DEMO) return delay(db.posts.filter((p) => p.author_id === user.id).sort(byNewest));
+  return ok(await sb.from('posts').select('*').eq('author_id', user.id).order('created_at', { ascending: false }));
+}
+
+export async function getStoryForEdit(id) {
+  if (DEMO) {
+    const p = db.posts.find((x) => x.id === id);
+    if (!p || !(isAdmin() || p.author_id === demoUserId())) return delay(null);
+    return delay({ ...p });
+  }
+  return ok(await sb.from('posts').select('*').eq('id', id).maybeSingle());
+}
+
+export async function saveStory(row) {
+  const user = await getUser(); if (!user) fail('Please log in.');
+  const fields = ['title', 'slug', 'dek', 'body', 'tag', 'author_name', 'cover_url', 'youtube_id', 'published', 'published_at', 'submitted'];
+  const clean = Object.fromEntries(Object.entries(row).filter(([k]) => fields.includes(k)));
+  if (DEMO) {
+    const admin = isAdmin();
+    if (!admin) { if (me()?.role !== 'mentor') fail('Not allowed.'); clean.published = false; }
+    if (db.posts.some((p) => p.slug === clean.slug && p.id !== row.id)) clean.slug = `${clean.slug}-${Math.random().toString(36).slice(2, 6)}`;
+    if (row.id) {
+      const p = db.posts.find((x) => x.id === row.id);
+      if (!p || !(admin || (p.author_id === user.id && !p.published))) fail('Not allowed.');
+      Object.assign(p, clean); save(); return delay({ ...p });
+    }
+    const p = { ...clean, id: uid(), author_id: user.id, created_at: nowIso() };
+    db.posts.push(p); save(); return delay({ ...p });
+  }
+  const attempt = async (data) => (row.id
+    ? sb.from('posts').update(data).eq('id', row.id).select().single()
+    : sb.from('posts').insert({ ...data, author_id: user.id }).select().single());
+  let res = await attempt(clean);
+  if (res.error?.code === '23505') res = await attempt({ ...clean, slug: `${clean.slug}-${Math.random().toString(36).slice(2, 6)}` });
+  return ok(res);
+}
+
+export async function deleteStory(id) {
+  if (DEMO) {
+    const p = db.posts.find((x) => x.id === id);
+    if (!p || !(isAdmin() || (p.author_id === demoUserId() && !p.published))) fail('Not allowed.');
+    db.posts = db.posts.filter((x) => x.id !== id); save(); return delay(true);
+  }
+  ok(await sb.from('posts').delete().eq('id', id));
   return true;
 }

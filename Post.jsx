@@ -1,7 +1,7 @@
 import { Link, useParams } from 'react-router-dom';
 import * as api from './api.js';
 import { fmtDate, useLoad, useTitle } from './util.js';
-import Markdown from './Markdown.jsx';
+import RichText, { plainText } from './RichText.jsx';
 import { ErrorMsg, Loading, ShareButton, SubscribeForm, VideoPlayer } from './Bits.jsx';
 
 export default function Post() {
@@ -13,10 +13,11 @@ export default function Post() {
   if (error) return <div className="wrap page-top"><ErrorMsg error={error} /></div>;
   if (!p) return <div className="wrap page-top"><p className="h-l">Story not found.</p><Link to="/journal" className="ul link mt-24">All stories</Link></div>;
 
-  const words = (p.body || '').split(/\s+/).filter(Boolean).length;
+  const words = plainText(p.body || '').split(/\s+/).filter(Boolean).length;
   return (
     <article className="wrap page-top">
       <Link to="/journal" className="muted small">← Journal</Link>
+      {!p.published && <p className="panel mt-16" style={{ padding: 16 }} role="note">Preview: this story is not published yet. <Link to={`/editor/${p.id}`} className="ul">Back to editing</Link></p>}
       <header style={{ maxWidth: 900, marginTop: 32 }}>
         {p.tag && <p className="small muted">{p.tag}</p>}
         <h1 className="h-xl mt-16">{p.title}</h1>
@@ -31,7 +32,7 @@ export default function Post() {
         <div className="side" />
         <div className="main">
           {p.youtube_id && <div style={{ maxWidth: 680, marginBottom: 40 }}><VideoPlayer video={{ youtube_id: p.youtube_id, title: p.title }} /></div>}
-          <div className="prose"><Markdown text={p.body} /></div>
+          <RichText text={p.body} />
           <div className="panel mt-48" style={{ maxWidth: 680 }}>
             <p className="h-m" style={{ marginBottom: 16 }}>Get new stories by email</p>
             <SubscribeForm compact />

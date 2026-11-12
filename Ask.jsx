@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import * as api from './api.js';
 import { fmtDate, useLoad, useTitle } from './util.js';
-import Markdown from './Markdown.jsx';
+import RichText from './RichText.jsx';
 import { ErrorMsg, Loading } from './Bits.jsx';
 
 function AskForm() {
@@ -55,7 +55,7 @@ export default function Ask() {
             </div>
             <div style={{ flex: '4 1 560px', minWidth: 0 }}>
               <p className="h-m">{q.question}</p>
-              <div className="prose mt-16" style={{ fontSize: 16 }}><Markdown text={q.answer} /></div>
+              <RichText text={q.answer} className="prose mt-16" style={{ fontSize: 16 }} />
               {q.answered_by && <p className="small muted">Answered by {q.answered_by}</p>}
             </div>
           </div>

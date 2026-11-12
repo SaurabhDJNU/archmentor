@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import * as api from './api.js';
 import { useAuth } from './auth.jsx';
-import { SERVICES, download, fmtDate, slugify, toCsv, useLoad, useTitle, youtubeId } from './util.js';
+import { SERVICES, download, fmtDate, toCsv, useLoad, useTitle, youtubeId } from './util.js';
 import { ErrorMsg, Loading } from './Bits.jsx';
+import ImageInput from './ImageInput.jsx';
+import RichEditor from './RichEditor.jsx';
 
 const Status = ({ s }) => <span className={`status ${s}`}>{s}</span>;
 
@@ -36,7 +38,7 @@ function ProfileForm({ profile, mentor }) {
             <div className="field"><label htmlFor="p-org">Practice or institution</label><input id="p-org" value={f.organisation} onChange={set('organisation')} /></div>
             <div className="field"><label htmlFor="p-li">LinkedIn URL</label><input id="p-li" type="url" value={f.linkedin_url} onChange={set('linkedin_url')} /></div>
           </div>
-          <div className="field"><label htmlFor="p-photo">Photo URL (a square or portrait image link)</label><input id="p-photo" type="url" value={f.photo_url} onChange={set('photo_url')} /></div>
+          <ImageInput id="p-photo" label="Profile photo" shape="portrait" value={f.photo_url} onChange={(url) => setF({ ...f, photo_url: url })} />
           <div className="field"><label htmlFor="p-bio">Short bio</label><textarea id="p-bio" rows={5} value={f.bio} onChange={set('bio')} /></div>
           <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
             <legend className="small muted" style={{ marginBottom: 4 }}>I can help with</legend>
@@ -130,6 +132,41 @@ function Tabs({ tabs, active, setActive }) {
   );
 }
 
+function Stories({ admin }) {
+  const { data, error, loading, reload } = useLoad(() => (admin ? api.adminList('posts') : api.listMyStories()), [admin]);
+  const rows = [...(data || [])].sort((x, y) => (y.submitted && !y.published) - (x.submitted && !x.published));
+  const label = (p) => (p.published ? 'published' : p.submitted ? 'review' : 'draft');
+  return (
+    <section>
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 16, marginBottom: 16 }}>
+        <h2 className="h-m">{admin ? 'Journal stories' : 'My stories'} {data && <span className="faint small">({data.length})</span>}</h2>
+        <Link to="/editor/new" className="btn">Write a new story</Link>
+      </div>
+      {!admin && <p className="small muted" style={{ marginBottom: 16 }}>Write a draft, then send it for review. An admin publishes it.</p>}
+      {loading && <Loading />}
+      <ErrorMsg error={error} />
+      {data && !data.length && <p className="empty">No stories yet. Start with “Write a new story”.</p>}
+      {rows.map((p) => (
+        <div key={p.id} className="card-line" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 24px', alignItems: 'baseline', justifyContent: 'space-between' }}>
+          <div style={{ flex: '1 1 360px', minWidth: 0 }}>
+            <Link to={`/editor/${p.id}`} style={{ fontSize: 20 }}>{p.title || 'Untitled'}</Link>
+            <p className="small muted">{[p.author_name, p.published ? `Published ${fmtDate(p.published_at)}` : `Last saved ${fmtDate(p.created_at)}`].filter(Boolean).join(' · ')}</p>
+          </div>
+          <div className="actions">
+            <span className={`status ${p.published ? 'published' : 'pending'}`}>{label(p) === 'review' ? 'Sent for review' : label(p) === 'draft' ? 'Draft' : 'Published'}</span>
+            <Link to={`/editor/${p.id}`} className="ul">{admin || !p.published ? 'Edit' : 'Open'}</Link>
+            {p.published && <Link to={`/journal/${p.slug}`} className="ul">View</Link>}
+            {(admin || !p.published) && <button type="button" className="ul" style={{ color: 'var(--bad)', borderColor: 'var(--bad)' }} onClick={async () => {
+              if (!window.confirm(`Delete “${p.title}” permanently? This cannot be undone.`)) return;
+              await api.deleteStory(p.id); reload();
+            }}>Delete</button>}
+          </div>
+        </div>
+      ))}
+    </section>
+  );
+}
+
 function StudentDash({ profile }) {
   const [tab, setTab] = useState('requests');
   return (
@@ -150,8 +187,9 @@ function MentorDash({ profile }) {
           <p><b style={{ fontWeight: 500 }}>Your mentor profile is awaiting approval.</b> Complete it below; an admin will review it before it appears in the mentor list.</p>
         </div>
       )}
-      <Tabs tabs={[['requests', 'Requests'], ['profile', 'My profile']]} active={tab} setActive={setTab} />
+      <Tabs tabs={[['requests', 'Requests'], ['stories', 'My stories'], ['profile', 'My profile']]} active={tab} setActive={setTab} />
       {tab === 'requests' && <MyRequests as="mentor" />}
+      {tab === 'stories' && (profile.approved ? <Stories /> : <p className="empty">You can write for the Journal once your profile is approved.</p>)}
       {tab === 'profile' && <ProfileForm profile={profile} mentor />}
     </>
   );
@@ -197,6 +235,8 @@ function Collection({ table, title, columns, fields, blank, prepare, csv, extra 
             const id = `${table}-${fd.key}`;
             const v = editing[fd.key];
             const set = (val) => setEditing({ ...editing, [fd.key]: val });
+            if (fd.type === 'image') return <ImageInput key={fd.key} id={id} label={fd.label} shape={fd.shape} value={v || ''} onChange={set} />;
+            if (fd.type === 'rich') return <div key={fd.key}><p className="small muted" style={{ marginBottom: 8 }}>{fd.label}</p><RichEditor value={v || ''} onChange={set} compact label={fd.label} /></div>;
             if (fd.type === 'checkbox') return <label key={fd.key} className="check"><input type="checkbox" checked={!!v} onChange={(e) => set(e.target.checked)} /> {fd.label}</label>;
             if (fd.type === 'select') return <div key={fd.key} className="field"><label htmlFor={id}>{fd.label}</label><select id={id} value={v ?? ''} onChange={(e) => set(e.target.value)}>{fd.options.map(([o, l]) => <option key={o} value={o}>{l}</option>)}</select></div>;
             if (fd.type === 'textarea') return <div key={fd.key} className="field"><label htmlFor={id}>{fd.label}</label><textarea id={id} rows={fd.rows || 4} value={v ?? ''} onChange={(e) => set(e.target.value)} required={fd.required} /></div>;
@@ -288,7 +328,7 @@ function AdminDash() {
             { key: 'approved', label: 'Approved mentor (shown publicly)', type: 'checkbox' },
             { key: 'title', label: 'Title' },
             { key: 'organisation', label: 'Practice or institution' },
-            { key: 'photo_url', label: 'Photo URL', type: 'url' },
+            { key: 'photo_url', label: 'Photo', type: 'image', shape: 'portrait' },
             { key: 'bio', label: 'Bio', type: 'textarea' },
           ]}
           prepare={({ id, full_name, role, approved, title, organisation, photo_url, bio }) => ({ id, full_name, role, approved, title, organisation, photo_url, bio })}
@@ -335,30 +375,7 @@ function AdminDash() {
         </>
       )}
 
-      {tab === 'posts' && (
-        <Collection
-          table="posts" title="Journal stories"
-          columns={[
-            ['title', 'Title', (r) => <Link to={`/journal/${r.slug}`} className="ul">{r.title}</Link>],
-            ['author_name', 'Author'],
-            ['published_at', 'Date', (r) => fmtDate(r.published_at)],
-            ['published', 'Status', (r) => <Status s={r.published ? 'published' : 'pending'} />],
-          ]}
-          blank={{ title: '', slug: '', dek: '', body: '', tag: '', author_name: '', cover_url: '', youtube_id: '', published: false, published_at: new Date().toISOString() }}
-          fields={[
-            { key: 'title', label: 'Title', required: true },
-            { key: 'slug', label: 'Web address (leave empty to make one from the title)', placeholder: 'how-to-present-to-a-jury' },
-            { key: 'dek', label: 'Summary (one or two sentences)', type: 'textarea', rows: 2 },
-            { key: 'tag', label: 'Topics, comma separated', placeholder: 'Portfolio, Internships' },
-            { key: 'author_name', label: 'Author' },
-            { key: 'cover_url', label: 'Cover image URL', type: 'url' },
-            { key: 'youtube_id', label: 'YouTube video (link or ID, optional)' },
-            { key: 'body', label: 'Story text. Use ## for headings, - for lists, > for quotes, **bold**, [text](https://link)', type: 'textarea', rows: 16 },
-            { key: 'published', label: 'Published', type: 'checkbox' },
-          ]}
-          prepare={(r) => ({ ...r, slug: r.slug ? slugify(r.slug) : slugify(r.title), youtube_id: youtubeId(r.youtube_id), published_at: r.published_at || new Date().toISOString() })}
-        />
-      )}
+      {tab === 'posts' && <Stories admin />}
 
       {tab === 'videos' && (
         <Collection
@@ -393,7 +410,7 @@ function AdminDash() {
           ]}
           fields={[
             { key: 'question', label: 'Question', type: 'textarea', rows: 3, required: true },
-            { key: 'answer', label: 'Answer (same formatting as Journal stories)', type: 'textarea', rows: 8 },
+            { key: 'answer', label: 'Answer', type: 'rich' },
             { key: 'answered_by', label: 'Answered by' },
             { key: 'show_name', label: 'Show the student’s first name', type: 'checkbox' },
             { key: 'published', label: 'Publish on the Ask page', type: 'checkbox' },
