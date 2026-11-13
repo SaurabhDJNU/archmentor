@@ -9,6 +9,7 @@ import { Status } from './Ui.jsx';
 import { PayButton } from './Checkout.jsx';
 import ArchArt from './ArchArt.jsx';
 import * as api from './api.js';
+import { T, Img } from './Content.jsx';
 
 const STEP_LABEL = {
   draft: 'Draft', submitted: 'Waiting for a mentor', awaiting_payment: 'Waiting for payment', assigned: 'Mentor assigned',
@@ -35,10 +36,10 @@ export function PortfolioHome() {
       <div className="hero-split">
         <div>
           <p className="label">Portfolio review studio</p>
-          <h1 className="h-xl">Get your portfolio read by a practising architect.</h1>
-          <p className="lead mt-24" style={{ maxWidth: '52ch' }}>Upload your PDF, tell us what it is for — internships, jobs or a master’s application — and a verified mentor sends a scored review with clear next steps. Your files stay private: only you, your mentor and our review coordinator can open them.</p>
+          <h1 className="h-xl"><T k="portfolio.title">Get your portfolio read by a practising architect.</T></h1>
+          <p className="lead mt-24" style={{ maxWidth: '52ch' }}><T k="portfolio.lead" block>Upload your PDF, tell us what it is for — internships, jobs or a master’s application — and a verified mentor sends a scored review with clear next steps. Your files stay private: only you, your mentor and our review coordinator can open them.</T></p>
         </div>
-        <ArchArt kind="section" />
+        <Img k="portfolio.image" fallback={<ArchArt kind="section" />} />
       </div>
       <section className="mt-64">
         <p className="label">Review types</p>

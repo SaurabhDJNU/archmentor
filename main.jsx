@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import './styles.css';
 import { AuthProvider } from './auth.jsx';
+import { ContentProvider } from './Content.jsx';
 import Layout, { NotConfigured } from './Layout.jsx';
 import { MISCONFIGURED } from './api.js';
 import Legal from './Legal.jsx';
@@ -41,6 +42,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(MISCONFIGURED ? <Not
   <React.StrictMode>
     <BrowserRouter basename={basename}>
       <AuthProvider>
+        <ContentProvider>
         <Routes>
           <Route element={<Layout />}>
             <Route index element={<Home />} />
@@ -85,6 +87,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(MISCONFIGURED ? <Not
             <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>
+        </ContentProvider>
       </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>

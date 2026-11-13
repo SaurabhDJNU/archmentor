@@ -5,6 +5,7 @@ import { useAuth } from './auth.jsx';
 import { ROLE_LABEL, timeAgo, useLoad, useTitle } from './util.js';
 import { ErrorMsg, Loading } from './Bits.jsx';
 import * as platform from './platform.js';
+import { T, Img } from './Content.jsx';
 
 function Report({ kind, id }) {
   const [state, setState] = useState('');
@@ -60,8 +61,8 @@ export default function Community() {
       <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-end', gap: 24 }}>
         <div>
           <p className="label" style={{ marginBottom: 24 }}>Community</p>
-          <h1 className="h-xl">Ask. Share. Learn together.</h1>
-          <p className="lead mt-16" style={{ maxWidth: '52ch' }}>Real questions and practical advice from architecture students, mentors and professionals.</p>
+          <h1 className="h-xl"><T k="community.title">Ask. Share. Learn together.</T></h1>
+          <p className="lead mt-16" style={{ maxWidth: '52ch' }}><T k="community.lead" block>Real questions and practical advice from architecture students, mentors and professionals.</T></p>
         </div>
         <Link to="/community/ask" className="btn">+ Ask a question</Link>
       </div>

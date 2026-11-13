@@ -2,6 +2,7 @@ import { useState } from 'react';
 import * as api from './api.js';
 import { useTitle } from './util.js';
 import { CONTACT_EMAIL } from './config.js';
+import { T, Img } from './Content.jsx';
 
 export default function Write() {
   useTitle('Write for the Journal');
@@ -20,8 +21,8 @@ export default function Write() {
       <p className="label" style={{ marginBottom: 24 }}>Write for the Journal</p>
       <div className="split" style={{ gap: 64 }}>
         <div style={{ flex: '1 1 360px', minWidth: 0 }}>
-          <h1 className="h-xl" style={{ maxWidth: '14ch' }}>Share what you learned.</h1>
-          <p className="lead mt-24" style={{ maxWidth: '44ch' }}>Students and architects are welcome to write for us: a lesson from a jury, an internship, a site visit or a building you keep going back to. Send a short idea first; we will reply before you write the full piece.</p>
+          <h1 className="h-xl" style={{ maxWidth: '14ch' }}><T k="write.title">Share what you learned.</T></h1>
+          <p className="lead mt-24" style={{ maxWidth: '44ch' }}><T k="write.lead" block>Students and architects are welcome to write for us: a lesson from a jury, an internship, a site visit or a building you keep going back to. Send a short idea first; we will reply before you write the full piece.</T></p>
           {CONTACT_EMAIL && <p className="mt-24" style={{ color: 'var(--ink-2)' }}>You can also email <a className="ul" href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.</p>}
         </div>
         <div style={{ flex: '1 1 420px', minWidth: 0 }}>

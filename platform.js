@@ -866,3 +866,67 @@ export async function uploadResourceFile(file) {
   if (error) fail(error.message);
   return sb().storage.from('resources').getPublicUrl(path).data.publicUrl;
 }
+
+// ================================================================ editable site text & images
+export async function loadSiteContent() {
+  if (DEMO) return demo.delay(Object.fromEntries(list('site_content').map((r) => [r.key, r])));
+  const { data, error } = await sb().from('site_content').select('key,text_value,image_url');
+  if (error) return {};
+  return Object.fromEntries((data || []).map((r) => [r.key, r]));
+}
+export async function saveSiteContent(key, patch) {
+  if (patch.image_url && !/^https:\/\//.test(patch.image_url) && !DEMO) fail('Images must be https links');
+  if (DEMO) {
+    const rows = list('site_content'); const r = rows.find((x) => x.key === key);
+    if (r) Object.assign(r, patch, { updated_at: nowIso() }); else rows.push({ key, text_value: null, image_url: null, ...patch, updated_at: nowIso() });
+    audit('update', 'site_content', key, patch);
+    return done(true);
+  }
+  ok(await sb().from('site_content').upsert({ key, ...patch }));
+  return true;
+}
+export async function resetSiteContent(key) {
+  if (DEMO) { D().site_content = list('site_content').filter((r) => r.key !== key); return done(true); }
+  ok(await sb().from('site_content').delete().eq('key', key));
+  return true;
+}
+
+// ================================================================ opportunities posted by mentors & firms
+const OPP_FIELDS = ['title', 'organisation', 'kind', 'location', 'remote', 'url', 'contact_email', 'description', 'deadline', 'status'];
+export async function myOpportunities() {
+  const user = await getUser(); if (!user) return [];
+  if (DEMO) return demo.delay(list('opportunities').filter((o) => o.posted_by === user.id).sort(byNew));
+  return ok(await sb().from('opportunities').select('*').eq('posted_by', user.id).order('created_at', { ascending: false }));
+}
+export async function saveMyOpportunity(row) {
+  const clean = pick(row, OPP_FIELDS);
+  clean.deadline = clean.deadline || null;
+  if (clean.url && !/^https?:\/\//.test(clean.url)) fail('The link must start with https://');
+  if (DEMO) {
+    const p = demo.me(); if (!p || !['mentor', 'professional'].includes(p.role)) fail('Only mentors and professionals can post opportunities');
+    const verified = !!p.approved;
+    if (row.id) {
+      const o = list('opportunities').find((x) => x.id === row.id && x.posted_by === p.id); if (!o) fail('Not allowed');
+      Object.assign(o, clean); o.status = clean.status === 'closed' ? 'closed' : verified ? 'published' : 'pending'; o.published = o.status === 'published';
+    } else {
+      list('opportunities').push({ ...clean, id: demo.uid(), posted_by: p.id, poster_name: p.firm_name || p.organisation || p.full_name, status: verified ? 'published' : 'pending', published: verified, review_note: '', created_at: nowIso() });
+    }
+    return done(verified ? 'published' : 'pending');
+  }
+  const user = await getUser();
+  if (row.id) ok(await sb().from('opportunities').update(clean).eq('id', row.id));
+  else { delete clean.status; ok(await sb().from('opportunities').insert({ ...clean, posted_by: user.id })); }
+  return true;
+}
+export async function deleteMyOpportunity(id) {
+  if (DEMO) { D().opportunities = list('opportunities').filter((o) => !(o.id === id && o.posted_by === demo.userId())); return done(true); }
+  ok(await sb().from('opportunities').delete().eq('id', id)); return true;
+}
+export async function reviewOpportunity(id, status, note = '') {
+  if (DEMO) {
+    const o = list('opportunities').find((x) => x.id === id); Object.assign(o, { status, review_note: note, published: status === 'published' });
+    if (o.posted_by) demo.demoNotify(o.posted_by, status === 'published' ? 'Your opportunity is live' : 'Opportunity not published', o.title, '/dashboard?tab=opportunities');
+    return done(true);
+  }
+  ok(await sb().from('opportunities').update({ status, review_note: note }).eq('id', id)); return true;
+}

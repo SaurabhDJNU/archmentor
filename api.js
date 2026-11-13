@@ -164,7 +164,7 @@ export async function getMyProfile() {
   return ok(await sb.from('profiles').select('*').eq('id', user.id).maybeSingle());
 }
 
-const PROFILE_FIELDS = ['full_name', 'title', 'organisation', 'bio', 'photo_url', 'linkedin_url', 'portfolio_url', 'calendly_url', 'expertise', 'experience', 'works_with', 'stage', 'location', 'languages', 'discipline', 'phone', 'email_opt_out'];
+const PROFILE_FIELDS = ['full_name', 'title', 'organisation', 'bio', 'photo_url', 'linkedin_url', 'portfolio_url', 'calendly_url', 'expertise', 'experience', 'works_with', 'stage', 'location', 'languages', 'discipline', 'phone', 'email_opt_out', 'firm_name'];
 const PUBLIC_MENTOR = ['id', 'full_name', 'title', 'organisation', 'bio', 'photo_url', 'linkedin_url', 'portfolio_url', 'expertise', 'experience', 'works_with', 'location', 'languages', 'discipline', 'created_at', 'role', 'approved'];
 const publicMentor = (m) => ({ ...pick(m, PUBLIC_MENTOR), role: 'mentor', approved: true });
 

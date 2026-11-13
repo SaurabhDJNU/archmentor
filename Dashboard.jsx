@@ -48,6 +48,9 @@ function ProfileForm({ profile }) {
           <div className="field"><label htmlFor="p-li">LinkedIn link</label><input id="p-li" type="url" value={f.linkedin_url} onChange={set('linkedin_url')} placeholder="https://www.linkedin.com/in/…" /></div>
         </div>
       )}
+      {role === 'professional' && (
+        <div className="field"><label htmlFor="p-firm">Practice / firm name (shown on opportunities you post)</label><input id="p-firm" value={f.firm_name || ''} onChange={set('firm_name')} placeholder="e.g. Studio Lattice Architects" /></div>
+      )}
       {isMentor && (
         <>
           <div className="form-row">
@@ -264,6 +267,66 @@ function ServicesManager() {
   );
 }
 
+// ------------------------------------------------------------ opportunities posted by mentors and firms
+const BLANK_OPP = { title: '', organisation: '', kind: 'Internship', location: '', remote: false, url: '', contact_email: '', description: '', deadline: '' };
+
+function MyOpportunities({ profile }) {
+  const { data, loading, reload } = useLoad(platform.myOpportunities);
+  const [f, setF] = useState(null);
+  const [msg, setMsg] = useState('');
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });
+  const verified = !!profile.approved;
+  return (
+    <section className="stack gap-16">
+      <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
+        <h2 className="h-m">Opportunities you posted</h2>
+        {!f && <button type="button" className="btn" onClick={() => setF({ ...BLANK_OPP, organisation: profile.firm_name || profile.organisation || '' })}>Post an opportunity</button>}
+      </div>
+      <p className="small muted">{verified ? 'Your account is verified, so your posts go live straight away. Our team may still hide posts that break the rules.' : 'Your posts are checked by our team before they go live (usually within a day). Ask us to verify your firm and future posts go live straight away.'}</p>
+      {f && (
+        <form className="panel stack gap-16" onSubmit={async (e) => {
+          e.preventDefault(); setMsg('');
+          try { const res = await platform.saveMyOpportunity(f); setF(null); reload(); setMsg(res === 'pending' ? 'Sent for review — you get an email when it is live.' : 'Saved.'); } catch (err) { setMsg(err.message); }
+        }}>
+          <div className="form-row">
+            <div className="field" style={{ flex: '2 1 280px' }}><label htmlFor="op-t">Title</label><input id="op-t" required minLength={4} value={f.title} onChange={set('title')} placeholder="e.g. Architectural intern, 6 months" /></div>
+            <div className="field"><label htmlFor="op-k">Type</label><select id="op-k" value={f.kind} onChange={set('kind')}>{['Internship', 'Job', 'Competition', 'Scholarship', 'Workshop', 'Fellowship'].map((x) => <option key={x}>{x}</option>)}</select></div>
+          </div>
+          <div className="form-row">
+            <div className="field"><label htmlFor="op-o">Office / organiser</label><input id="op-o" value={f.organisation} onChange={set('organisation')} /></div>
+            <div className="field"><label htmlFor="op-l">City</label><input id="op-l" value={f.location} onChange={set('location')} /></div>
+            <div className="field"><label htmlFor="op-d">Apply by</label><input id="op-d" type="date" value={f.deadline || ''} onChange={set('deadline')} /></div>
+          </div>
+          <label className="check"><input type="checkbox" checked={!!f.remote} onChange={set('remote')} /> Remote or online</label>
+          <div className="form-row">
+            <div className="field"><label htmlFor="op-u">Link to apply</label><input id="op-u" type="url" value={f.url} onChange={set('url')} placeholder="https://" /></div>
+            <div className="field"><label htmlFor="op-e">…or email for applications</label><input id="op-e" type="email" value={f.contact_email || ''} onChange={set('contact_email')} /></div>
+          </div>
+          <div className="field"><label htmlFor="op-desc">Description</label><textarea id="op-desc" rows={5} required value={f.description} onChange={set('description')} placeholder="Role, stipend or salary, duration, skills, how to apply." /></div>
+          <div className="actions"><button className="btn" type="submit">{f.id ? 'Save changes' : verified ? 'Publish' : 'Send for review'}</button><button type="button" className="ul" onClick={() => setF(null)}>Cancel</button></div>
+        </form>
+      )}
+      {msg && <p className="small" role="status">{msg}</p>}
+      {loading && <Loading />}
+      {data && !data.length && !f && <p className="empty">Nothing posted yet.</p>}
+      {(data || []).map((o) => (
+        <div key={o.id} className="card-line stack gap-8">
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+            <p style={{ fontSize: 18 }}>{o.title} <span className="small muted">· {o.kind}{o.deadline ? ` · by ${fmtDate(o.deadline)}` : ''}</span></p>
+            <Status s={o.status === 'published' ? 'approved' : o.status === 'rejected' ? 'declined' : 'pending'} label={o.status === 'pending' ? 'waiting for review' : o.status} />
+          </div>
+          {o.review_note && <p className="small">Note from our team: {o.review_note}</p>}
+          <div className="actions">
+            <button type="button" className="ul small" onClick={() => setF({ ...o })}>Edit</button>
+            {o.status === 'published' && <button type="button" className="ul small" onClick={async () => { await platform.saveMyOpportunity({ ...o, status: 'closed' }); reload(); }}>Close (position filled)</button>}
+            <button type="button" className="ul small" style={{ color: 'var(--bad)' }} onClick={async () => { if (window.confirm('Delete this post?')) { await platform.deleteMyOpportunity(o.id); reload(); } }}>Delete</button>
+          </div>
+        </div>
+      ))}
+    </section>
+  );
+}
+
 // ------------------------------------------------------------ sessions and questions for everyone
 function MySessions() {
   const { data, error, loading, reload } = useLoad(api.myRegistrations);
@@ -458,7 +521,8 @@ function ProfessionalDash({ profile }) {
       <div className="panel" style={{ marginBottom: 32, padding: 24 }}>
         <p>Thank you for joining as a professional. Answer students’ questions in the <Link to="/community" className="ul">community</Link> and join live sessions. Want to offer one-to-one sessions? Ask the ArchMentor team to make your account a mentor account.</p>
       </div>
-      <Tabs tabs={[['sessions', 'My live sessions'], ['questions', 'My questions'], ['profile', 'Profile']]} active={tab} setActive={setTab} />
+      <Tabs tabs={[['sessions', 'My live sessions'], ['opportunities', 'Post opportunities'], ['questions', 'My questions'], ['profile', 'Profile']]} active={tab} setActive={setTab} />
+      {tab === 'opportunities' && <MyOpportunities profile={profile} />}
       {tab === 'sessions' && <MySessions />}
       {tab === 'questions' && <MyQuestions />}
       {tab === 'profile' && <ProfileForm profile={profile} />}
@@ -494,9 +558,10 @@ function MentorDash({ profile }) {
   return (
     <>
       <MentorChecklist profile={profile} />
-      <Tabs tabs={[['requests', 'Requests'], ['availability', 'Availability'], ['services', 'My services'], ['portfolio', 'Portfolio reviews'], ['earnings', 'Earnings'], ['profile', 'My profile'], ['stories', 'My stories'], ['sessions', 'Live sessions'], ['questions', 'My questions']]} active={tab} setActive={setTab} />
+      <Tabs tabs={[['requests', 'Requests'], ['availability', 'Availability'], ['services', 'My services'], ['portfolio', 'Portfolio reviews'], ['earnings', 'Earnings'], ['opportunities', 'Post opportunities'], ['profile', 'My profile'], ['stories', 'My stories'], ['sessions', 'Live sessions'], ['questions', 'My questions']]} active={tab} setActive={setTab} />
       {tab === 'requests' && <MyRequests as="mentor" userId={profile.id} />}
       {tab === 'availability' && <AvailabilityEditor />}
+      {tab === 'opportunities' && <MyOpportunities profile={profile} />}
       {tab === 'portfolio' && <MyPortfolios mentor />}
       {tab === 'earnings' && <><Earnings /><PayoutDetails /></>}
       {tab === 'services' && <ServicesManager />}
@@ -666,7 +731,7 @@ export function AdminPanel({ tab }) {
           columns={[
             ['full_name', 'Name', (r) => <><span>{r.full_name || '—'}</span><br /><span className="small muted">{r.email}</span></>],
             ['role', 'Role', (r) => ROLE_LABEL[r.role] || r.role],
-            ['approved', 'Mentor status', (r) => (r.role === 'mentor' ? <Status s={r.approved ? 'approved' : 'pending'} label={r.approved ? 'verified' : 'awaiting approval'} /> : '')],
+            ['approved', 'Verified', (r) => (['mentor', 'professional'].includes(r.role) ? <Status s={r.approved ? 'approved' : 'pending'} label={r.approved ? 'verified' : r.role === 'mentor' ? 'awaiting approval' : 'not verified'} /> : '')],
             ['title', 'Title', (r) => [r.title, r.organisation].filter(Boolean).join(', ')],
             ['created_at', 'Joined', (r) => fmtDate(r.created_at)],
           ]}
@@ -675,7 +740,7 @@ export function AdminPanel({ tab }) {
               <Link to={`/mentors/${r.id}`} className="ul">Preview</Link>
               {quick('profiles', (x) => ({ approved: !x.approved }), (x) => (x.approved ? 'Unverify' : 'Approve'))(r, reload)}
             </>
-          ) : null)}
+          ) : r.role === 'professional' ? quick('profiles', (x) => ({ approved: !x.approved }), (x) => (x.approved ? 'Unverify firm' : 'Verify firm'))(r, reload) : null)}
           fields={[
             { key: 'full_name', label: 'Full name', required: true },
             { key: 'role', label: 'Role', type: 'select', options: [['student', 'Student'], ['mentor', 'Mentor'], ['professional', 'Professional'], ['admin', 'Admin']] },

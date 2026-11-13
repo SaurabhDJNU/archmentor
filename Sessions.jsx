@@ -4,6 +4,7 @@ import * as api from './api.js';
 import { useAuth } from './auth.jsx';
 import { dateParts, fmtDate, fmtSessionTime, useLoad, useTitle } from './util.js';
 import { ErrorMsg, Loading } from './Bits.jsx';
+import { T, Img } from './Content.jsx';
 
 const isUpcoming = (s) => !s.starts_at || new Date(s.starts_at) > new Date();
 const sessionPath = (s) => `/sessions/${s.slug || s.id}`;
@@ -55,9 +56,9 @@ export default function Sessions() {
 
   return (
     <div className="wrap page-top">
-      <p className="label" style={{ marginBottom: 24 }}>Live sessions</p>
-      <h1 className="h-xl" style={{ maxWidth: '18ch' }}>Learn the practice, not just the theory.</h1>
-      <p className="lead mt-24" style={{ maxWidth: '56ch' }}>Live talks, workshops and guidance sessions led by experienced architects, educators and mentors.</p>
+      <p className="label" style={{ marginBottom: 24 }}><T k="sessions.label">Live sessions</T></p>
+      <h1 className="h-xl" style={{ maxWidth: '18ch' }}><T k="sessions.title">Learn the practice, not just the theory.</T></h1>
+      <p className="lead mt-24" style={{ maxWidth: '56ch' }}><T k="sessions.lead" block>Live talks, workshops and guidance sessions led by experienced architects, educators and mentors.</T></p>
       {loading && <Loading />}
       <ErrorMsg error={error} />
       <section className="section">

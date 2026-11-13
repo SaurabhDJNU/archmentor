@@ -6,6 +6,7 @@ import { SERVICES, useLoad, useTitle } from './util.js';
 import { SOCIAL } from './config.js';
 import { Axonometric } from './Icons.jsx';
 import { Arrow, MentorCard, PostCard, SessionCard, ShortCard, Split, SubscribeForm, VideoPlayer } from './Bits.jsx';
+import { T, Img } from './Content.jsx';
 
 const NEEDS = [['portfolio', 'my portfolio'], ['career', 'my career direction'], ['admissions', 'admissions']];
 const STAGES = [['early', '1st–3rd year'], ['final', 'final year'], ['grad', 'practice already']];
@@ -25,11 +26,11 @@ function Finder() {
   const [stage, setStage] = useState('early');
   return (
     <div className="panel">
-      <p className="muted" style={{ fontSize: 15, marginBottom: 16 }}>I want help with</p>
+      <p className="muted" style={{ fontSize: 15, marginBottom: 16 }}><T k="home.finder.need">I want help with</T></p>
       <div className="choice-row" role="group" aria-label="What you need help with">
         {NEEDS.map(([id, label]) => <button key={id} type="button" className="choice" aria-pressed={need === id} onClick={() => setNeed(id)}>{label}</button>)}
       </div>
-      <p className="muted" style={{ fontSize: 15, margin: '32px 0 16px' }}>and I am in</p>
+      <p className="muted" style={{ fontSize: 15, margin: '32px 0 16px' }}><T k="home.finder.stage">and I am in</T></p>
       <div className="choice-row" role="group" aria-label="Your stage">
         {STAGES.map(([id, label]) => <button key={id} type="button" className="choice" aria-pressed={stage === id} onClick={() => setStage(id)}>{label}</button>)}
       </div>
@@ -79,24 +80,24 @@ export default function Home() {
   return (
     <>
       <section className="wrap hero">
-        <p className="label" style={{ marginBottom: 32 }}>Architecture mentorship</p>
-        <h1 className="display">Build your architecture career with expert guidance.</h1>
+        <p className="label" style={{ marginBottom: 32 }}><T k="home.hero.label">Architecture mentorship</T></p>
+        <h1 className="display reveal-words"><T k="home.hero.title">Build your architecture career with expert guidance.</T></h1>
         <div className="hero-aside">
           <div>
-            <p className="lead">Personal mentorship for portfolio reviews, career guidance and architecture admissions, with practising architects and educators.</p>
+            <p className="lead"><T k="home.hero.lead" block>Personal mentorship for portfolio reviews, career guidance and architecture admissions, with practising architects and educators.</T></p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px 32px', marginTop: 28 }}>
-              <Link to="/signup" className="ul link row">Join as a student <Arrow /></Link>
-              <Link to="/mentors" className="link muted">Explore mentors</Link>
+              <Link to="/signup" className="ul link row"><T k="home.hero.cta1">Join as a student</T> <Arrow /></Link>
+              <Link to="/mentors" className="link muted"><T k="home.hero.cta2">Explore mentors</T></Link>
             </div>
           </div>
         </div>
       </section>
 
       <figure className="wrap figure" style={{ margin: '0 auto' }}>
-        <div className="frame"><Axonometric /></div>
+        <div className="frame"><Img k="home.figure.image" alt="" shape="wide" fallback={<Axonometric />} /></div>
         <figcaption>
-          <span>Fig. 01 — Where a degree in architecture can lead.</span>
-          <span>From the free talk, “Is architecture only about design?”</span>
+          <T k="home.figure.caption1">Fig. 01 — Where a degree in architecture can lead.</T>
+          <T k="home.figure.caption2">From the free talk, “Is architecture only about design?”</T>
         </figcaption>
       </figure>
 
@@ -106,8 +107,8 @@ export default function Home() {
             <li key={id}>
               <Link to={`/mentors?category=${s.category}`} className="row">
                 <span className="no">0{i + 1}</span>
-                <span className="t">{s.title}</span>
-                <span className="d">{s.text}</span>
+                <T k={`services.${id}.title`} className="t">{s.title}</T>
+                <T k={`services.${id}.text`} className="d">{s.text}</T>
                 <Arrow />
               </Link>
             </li>
@@ -116,7 +117,7 @@ export default function Home() {
       </Split>
 
       <Split id="mentors" label="Mentors" aside={<>
-        <p style={{ color: 'var(--ink-2)', maxWidth: '26ch' }}>Experienced architects and educators.</p>
+        <p style={{ color: 'var(--ink-2)', maxWidth: '26ch' }}><T k="home.mentors.aside">Experienced architects and educators.</T></p>
         <Link to="/mentors" className="ul" style={{ alignSelf: 'flex-start', fontSize: 15 }}>View all mentors</Link>
       </>}>
         <div className="grid">{(mentors.data || []).slice(0, 3).map((m) => <MentorCard key={m.id} m={m} />)}</div>
@@ -132,7 +133,7 @@ export default function Home() {
 
       {(featuredVideo || shorts.length > 0) && (
         <Split id="watch" label="Watch" aside={<>
-          <p style={{ color: 'var(--ink-2)', maxWidth: '26ch' }}>Talk recordings and short studio lessons.</p>
+          <p style={{ color: 'var(--ink-2)', maxWidth: '26ch' }}><T k="home.watch.aside">Talk recordings and short studio lessons.</T></p>
           {SOCIAL.youtube
             ? <a href={SOCIAL.youtube} target="_blank" rel="noopener noreferrer" className="ul link row" style={{ alignSelf: 'flex-start', fontSize: 15 }}>Subscribe on YouTube <Arrow /></a>
             : <Link to="/videos" className="ul" style={{ alignSelf: 'flex-start', fontSize: 15 }}>All videos</Link>}
@@ -156,9 +157,9 @@ export default function Home() {
 
       <Split label="How it works">
         <ol className="steps">
-          <li><span className="faint small">01</span><p className="t">Create your account</p><p className="d">Join as a student and add your academic and career goals.</p></li>
-          <li><span className="faint small">02</span><p className="t">Choose your mentor</p><p className="d">Browse approved mentors and pick the right person for what you need.</p></li>
-          <li><span className="faint small">03</span><p className="t">Request and schedule</p><p className="d">Send a request; once it is approved, fix a time that suits you both.</p></li>
+          <li><span className="faint small">01</span><p className="t"><T k="home.how.1.t">Create your account</T></p><p className="d"><T k="home.how.1.d" block>Join as a student and add your academic and career goals.</T></p></li>
+          <li><span className="faint small">02</span><p className="t"><T k="home.how.2.t">Choose your mentor</T></p><p className="d"><T k="home.how.2.d" block>Browse approved mentors and pick the right person for what you need.</T></p></li>
+          <li><span className="faint small">03</span><p className="t"><T k="home.how.3.t">Pick a time and confirm</T></p><p className="d"><T k="home.how.3.d" block>Choose a free slot, or send a request; paid sessions are confirmed once you pay securely.</T></p></li>
         </ol>
       </Split>
 
@@ -171,14 +172,14 @@ export default function Home() {
       <Split label="Community">
         <div className="split" style={{ gap: 48 }}>
           <div style={{ flex: '3 1 360px', minWidth: 0 }}>
-            <p className="h-l">Ask. Share. Learn together.</p>
-            <p style={{ margin: '12px 0 24px', fontSize: 15, color: 'var(--ink-2)' }}>Real questions and practical advice from architecture students, mentors and professionals. You get an email when someone answers.</p>
+            <p className="h-l"><T k="home.community.title">Ask. Share. Learn together.</T></p>
+            <p style={{ margin: '12px 0 24px', fontSize: 15, color: 'var(--ink-2)' }}><T k="home.community.text" block>Real questions and practical advice from architecture students, mentors and professionals. You get an email when someone answers.</T></p>
             <div className="actions"><Link to="/community/ask" className="ul link row">Ask a question <Arrow /></Link><Link to="/community" className="link muted">Browse questions</Link></div>
           </div>
           <div className="panel stack gap-16" style={{ flex: '2 1 260px', minWidth: 0, alignSelf: 'flex-start', padding: 32 }}>
-            <p className="small muted">Write for the Journal</p>
-            <p className="h-m">Students and architects are welcome to write for us.</p>
-            <p style={{ fontSize: 15, color: 'var(--ink-2)' }}>Send a short idea: a lesson from a jury, an internship or a site visit.</p>
+            <p className="small muted"><T k="home.write.label">Write for the Journal</T></p>
+            <p className="h-m"><T k="home.write.title">Students and architects are welcome to write for us.</T></p>
+            <p style={{ fontSize: 15, color: 'var(--ink-2)' }}><T k="home.write.text" block>Send a short idea: a lesson from a jury, an internship or a site visit.</T></p>
             <Link to="/write" className="ul link row" style={{ alignSelf: 'flex-start' }}>Submit your story <Arrow /></Link>
           </div>
         </div>
@@ -187,7 +188,7 @@ export default function Home() {
       <StudioWord />
 
       <section className="wrap" style={{ paddingTop: 'clamp(120px, 14vw, 220px)' }}>
-        <p className="display" style={{ fontSize: 'clamp(40px, 6.4vw, 100px)', maxWidth: '14ch' }}>Move forward with clarity and confidence.</p>
+        <p className="display" style={{ fontSize: 'clamp(40px, 6.4vw, 100px)', maxWidth: '14ch' }}><T k="home.closing.title">Move forward with clarity and confidence.</T></p>
         <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-end', gap: 48, marginTop: 'clamp(48px, 6vw, 80px)' }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px 32px' }}>
             <Link to="/signup" className="ul link row">Join as a student <Arrow /></Link>

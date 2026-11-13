@@ -4,6 +4,8 @@ import { useAuth } from './auth.jsx';
 import { fmtDate, useLoad, useTitle } from './util.js';
 import { ErrorMsg, Loading } from './Bits.jsx';
 import ArchArt from './ArchArt.jsx';
+import { Link } from 'react-router-dom';
+import { T, Img } from './Content.jsx';
 
 function SaveToggle({ kind, id, saved, onChange }) {
   const { user } = useAuth();
@@ -16,6 +18,7 @@ export function Opportunities() {
   useTitle('Opportunities');
   const { data, error, loading } = useLoad(platform.listOpportunities);
   const saved = useLoad(platform.mySaved);
+  const { profile } = useAuth();
   const [kind, setKind] = useState('All');
   const [q, setQ] = useState('');
   const [onlySaved, setOnlySaved] = useState(false);
@@ -28,12 +31,15 @@ export function Opportunities() {
       <div className="hero-split">
         <div>
           <p className="label">Opportunities</p>
-          <h1 className="h-xl">Internships, jobs and competitions.</h1>
-          <p className="lead mt-24">Collected by our team and mentors. Always apply on the organiser’s own page.</p>
+          <h1 className="h-xl"><T k="opportunities.title">Internships, jobs and competitions.</T></h1>
+          <p className="lead mt-24"><T k="opportunities.lead" block>Posted by our team, verified mentors and verified practices. Always apply on the organiser’s own page.</T></p>
         </div>
-        <ArchArt kind="plan" />
+        <Img k="opportunities.image" fallback={<ArchArt kind="plan" />} />
       </div>
-      <div className="filters mt-48">
+      <p className="mt-32 small">{['mentor', 'professional'].includes(profile?.role)
+        ? <Link className="ul" to="/dashboard?tab=opportunities">Post an opportunity</Link>
+        : <>Hiring or running a competition? <Link className="ul" to="/signup?role=professional">Create a professional account</Link> to post — verified firms and mentors go live straight away.</>}</p>
+      <div className="filters mt-32">
         <input type="search" aria-label="Search opportunities" placeholder="Search title, office or city" value={q} onChange={(e) => setQ(e.target.value)} />
         <div className="choice-row" role="group" aria-label="Type">{kinds.map((k) => <button key={k} type="button" className="choice" aria-pressed={kind === k} onClick={() => setKind(k)}>{k}</button>)}</div>
         <label className="check small"><input type="checkbox" checked={onlySaved} onChange={(e) => setOnlySaved(e.target.checked)} /> Saved only</label>
@@ -44,12 +50,12 @@ export function Opportunities() {
         {rows.map((o) => (
           <article key={o.id} className="card-line">
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-              <p className="small muted">{o.kind} · {o.organisation}{o.location ? ` · ${o.location}` : ''}{o.remote ? ' · remote' : ''}</p>
+              <p className="small muted">{[o.kind, o.organisation, o.location, o.remote && 'remote', o.poster_name && `posted by ${o.poster_name}`].filter(Boolean).join(' · ')}</p>
               <SaveToggle kind="opportunity" id={o.id} saved={saved.data || []} onChange={saved.reload} />
             </div>
             <h2 className="h-m mt-8">{o.title}</h2>
             {o.description && <p className="mt-8" style={{ color: 'var(--ink-2)', maxWidth: '70ch' }}>{o.description}</p>}
-            <p className="small mt-8">{o.deadline ? `Apply by ${fmtDate(o.deadline)}` : 'Rolling deadline'}{o.url && <> · <a className="ul" href={o.url} target="_blank" rel="noopener noreferrer">Details ↗</a></>}</p>
+            <p className="small mt-8">{o.deadline ? `Apply by ${fmtDate(o.deadline)}` : 'Rolling deadline'}{o.url && <> · <a className="ul" href={o.url} target="_blank" rel="noopener noreferrer nofollow">Details ↗</a></>}{o.contact_email && <> · <a className="ul" href={`mailto:${o.contact_email}`}>Apply by email</a></>}</p>
           </article>
         ))}
       </div>
@@ -69,10 +75,10 @@ export function Resources() {
       <div className="hero-split">
         <div>
           <p className="label">Resources</p>
-          <h1 className="h-xl">Guides, templates and reading lists.</h1>
-          <p className="lead mt-24">Short, practical material from mentors — free to use.</p>
+          <h1 className="h-xl"><T k="resources.title">Guides, templates and reading lists.</T></h1>
+          <p className="lead mt-24"><T k="resources.lead" block>Short, practical material from mentors — free to use.</T></p>
         </div>
-        <ArchArt kind="axon" />
+        <Img k="resources.image" fallback={<ArchArt kind="axon" />} />
       </div>
       <div className="choice-row small-choices mt-48" role="group" aria-label="Type">{kinds.map((k) => <button key={k} type="button" className="choice" aria-pressed={kind === k} onClick={() => setKind(k)}>{k}</button>)}</div>
       {loading && <Loading />}<ErrorMsg error={error} />

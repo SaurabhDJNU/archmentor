@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import * as api from './api.js';
 import { fmtPrice, initials, useLoad, useTitle } from './util.js';
 import { ErrorMsg, Loading } from './Bits.jsx';
+import { T, Img } from './Content.jsx';
 
 function MentorRow({ m }) {
   const intro = m.services.find((s) => !s.price_inr) || m.services[0];
@@ -60,8 +61,8 @@ export default function Mentors() {
       <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-end', gap: 32 }}>
         <div>
           <p className="label" style={{ marginBottom: 24 }}>Mentors</p>
-          <h1 className="h-xl" style={{ maxWidth: '18ch' }}>Find a mentor for your architecture journey.</h1>
-          <p className="lead mt-24" style={{ maxWidth: '58ch' }}>Verified architects and educators for portfolio feedback, career guidance, admissions advice, research support and industry insight.</p>
+          <h1 className="h-xl" style={{ maxWidth: '18ch' }}><T k="mentors.title">Find a mentor for your architecture journey.</T></h1>
+          <p className="lead mt-24" style={{ maxWidth: '58ch' }}><T k="mentors.lead" block>Verified architects and educators for portfolio feedback, career guidance, admissions advice, research support and industry insight.</T></p>
         </div>
         {data && (
           <dl className="stats">

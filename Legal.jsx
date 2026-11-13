@@ -2,6 +2,7 @@ import { Link, useParams } from 'react-router-dom';
 import * as platform from './platform.js';
 import { useLoad, useTitle } from './util.js';
 import { CONTACT_EMAIL } from './config.js';
+import { T, Img } from './Content.jsx';
 
 // Plain-language DRAFTS. They must be reviewed by a lawyer before payments go live (see README → Before going live).
 const PAGES = {
@@ -54,7 +55,7 @@ export default function Legal() {
       <h1 className="h-l mt-16">{p.title}</h1>
       <p className="small muted mt-16">Draft for review — last updated {new Date().getFullYear()}.</p>
       <div className="stack gap-32 mt-48">
-        {p.body(s).map(([h, t]) => <section key={h}><h2 className="h-m">{h}</h2><p className="mt-8" style={{ color: 'var(--ink-2)' }}>{t}</p></section>)}
+        {p.body(s).map(([h, t], i) => <section key={h}><h2 className="h-m"><T k={`legal.${page}.${i}.h`}>{h}</T></h2><p className="mt-8" style={{ color: 'var(--ink-2)' }}><T k={`legal.${page}.${i}.t`} block>{t}</T></p></section>)}
       </div>
       <p className="mt-64 small"><Link className="ul" to="/legal/privacy">Privacy</Link> · <Link className="ul" to="/legal/terms">Terms</Link> · <Link className="ul" to="/legal/refunds">Refunds</Link> · <Link className="ul" to="/support">Contact &amp; support</Link></p>
     </div>

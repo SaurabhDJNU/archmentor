@@ -123,9 +123,9 @@ export const seed = {
   ],
   portfolio_projects: [], portfolio_files: [], portfolio_reviews: [],
   opportunities: [
-    { id: 'op-1', title: 'Architectural intern (6 months)', organisation: 'Studio practice, Delhi NCR', kind: 'Internship', location: 'Gurugram', remote: false, url: '', description: 'Residential and hospitality projects. Portfolio with hand sketches preferred.', deadline: iso(20).slice(0, 10), published: true, created_at: iso(-2) },
-    { id: 'op-2', title: 'Student housing ideas competition', organisation: 'Open call', kind: 'Competition', location: 'Online', remote: true, url: '', description: 'Two-sheet entries on affordable student housing in Indian cities.', deadline: iso(45).slice(0, 10), published: true, created_at: iso(-4) },
-    { id: 'op-3', title: 'Junior architect', organisation: 'Design-build office, Pune', kind: 'Job', location: 'Pune', remote: false, url: '', description: '0–2 years. Revit and site coordination.', deadline: null, published: true, created_at: iso(-6) },
+    { id: 'op-1', title: 'Architectural intern (6 months)', organisation: 'Studio practice, Delhi NCR', kind: 'Internship', location: 'Gurugram', remote: false, url: '', description: 'Residential and hospitality projects. Portfolio with hand sketches preferred.', deadline: iso(20).slice(0, 10), status: 'published', published: true, created_at: iso(-2) },
+    { id: 'op-2', title: 'Student housing ideas competition', organisation: 'Open call', kind: 'Competition', location: 'Online', remote: true, url: '', description: 'Two-sheet entries on affordable student housing in Indian cities.', deadline: iso(45).slice(0, 10), status: 'published', published: true, created_at: iso(-4) },
+    { id: 'op-3', posted_by: 'm-satish', poster_name: 'Satish Khanna', title: 'Junior architect', organisation: 'Design-build office, Pune', kind: 'Job', location: 'Pune', remote: false, url: '', description: '0–2 years. Revit and site coordination.', deadline: null, status: 'published', published: true, created_at: iso(-6) },
   ],
   resources: [
     { id: 'rs-1', title: 'Internship portfolio checklist', kind: 'Checklist', description: 'Twelve checks before you send your portfolio to an office.', url: '', cover_url: '', published: true, sort: 1, created_at: iso(-9) },
@@ -133,6 +133,7 @@ export const seed = {
     { id: 'rs-3', title: 'Reading list: first year in practice', kind: 'Reading list', description: 'Books and essays mentors recommend for the first year after graduation.', url: '', cover_url: '', published: true, sort: 3, created_at: iso(-9) },
   ],
   saved_items: [],
+  site_content: [],
   call_requests: [], call_notes: [], support_tickets: [], ticket_messages: [], email_campaigns: [], forum_reports: [],
   email_log: [],
 };

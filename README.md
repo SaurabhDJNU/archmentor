@@ -159,6 +159,15 @@ Supabase pauses free projects after a week with no activity. The workflow `.gith
 ## Updating the database after a code update
 If a new version changes `schema.sql`, run the whole file again in the SQL Editor. It keeps all data (it never drops tables or columns). This version adds Part B (sections 13–30): staff and permissions, audit log, notifications, availability, payments and finance, portfolio reviews, support, campaigns, opportunities and resources.
 
+## Changing text and pictures on the site
+Staff with the **content manager** role (and the main admin) see an **Edit text & images** button in the bottom-right corner of every public page. Click it, then click any outlined heading or paragraph and type; it saves when you click away (Esc cancels, clearing a text brings back the original). Pictures get a **Change picture** button (paste, drop, upload or link). Every change is saved in the database and listed in the audit log. Mentors, sessions, Journal stories, videos, resources and opportunities are edited in the Workspace as before.
+
+## Opportunities from mentors and firms
+Approved mentors and **verified firms** (professional accounts the team verifies under Workspace → People → *Verify firm*) can post internships, jobs and competitions from their dashboard; their posts go live at once. Other professional accounts can post too, but their posts wait in **Workspace → Videos & resources → Opportunities waiting for review**. Posters get an email when a post is published or declined, can close a post once the position is filled, and are limited to 5 posts a day.
+
+## Motion
+Pages rise in, sections fade up as you scroll, lines draw, links underline from the left. If the device has "reduce motion" switched on (Windows: Settings → Accessibility → Visual effects → *Animation effects*; Mac/iPhone: Accessibility → Motion → *Reduce motion*), nothing moves and content only fades — this is deliberate, for visitors who get dizzy from motion.
+
 ## Money rules (how commission works)
 All amounts are whole **paise**; percentages are **basis points** (1% = 100). For a listed price *P* and the matching rule:
 - fee = round(P × bps / 10000) + fixed, at least the minimum, at most the maximum (and never above *P* when the fee is inside the price)

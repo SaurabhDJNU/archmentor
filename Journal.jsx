@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import * as api from './api.js';
 import { useLoad, useTitle } from './util.js';
 import { ErrorMsg, Loading, PostCard } from './Bits.jsx';
+import { T, Img } from './Content.jsx';
 
 export default function Journal() {
   useTitle('Journal');
@@ -22,8 +23,8 @@ export default function Journal() {
 
   return (
     <div className="wrap page-top">
-      <p className="label" style={{ marginBottom: 24 }}>Journal</p>
-      <h1 className="h-xl" style={{ maxWidth: '18ch' }}>Practical guidance for your architecture journey.</h1>
+      <p className="label" style={{ marginBottom: 24 }}><T k="journal.label">Journal</T></p>
+      <h1 className="h-xl" style={{ maxWidth: '18ch' }}><T k="journal.title">Practical guidance for your architecture journey.</T></h1>
 
       <div className="split mt-48" style={{ alignItems: 'flex-end' }}>
         <div className="field" style={{ flex: '1 1 320px', maxWidth: 480 }}>

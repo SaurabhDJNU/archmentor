@@ -3395,5 +3395,138 @@ select cron.schedule('archmentor-expire-holds', '*/10 * * * *', 'select private.
 select cron.schedule('archmentor-scheduled-publish', '*/15 * * * *', 'select private.publish_scheduled()');
 select cron.schedule('archmentor-campaigns', '15 4 * * *', 'select private.continue_campaigns()');   -- 9:45 IST, continues big campaigns daily
 
+-- =====================================================================
+-- 31. Editable site text and images (staff with content.manage)
+-- =====================================================================
+
+create table if not exists public.site_content (
+  key        text primary key check (key ~ '^[a-z0-9_.-]{2,120}$'),
+  text_value text,
+  image_url  text,
+  updated_by uuid references public.profiles (id) on delete set null,
+  updated_at timestamptz not null default now()
+);
+alter table public.site_content enable row level security;
+select private.pol('site_content', 'read', 'select', 'true');
+select private.pol('site_content', 'write', 'insert', null, 'public.has_perm(''content.manage'')');
+select private.pol('site_content', 'update', 'update', 'public.has_perm(''content.manage'')', 'public.has_perm(''content.manage'')');
+select private.pol('site_content', 'delete', 'delete', 'public.has_perm(''content.manage'')');
+
+create or replace function public.guard_site_content()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  new.updated_by := auth.uid(); new.updated_at := now();
+  if new.image_url is not null and new.image_url <> '' and new.image_url !~ '^https://' then raise exception 'Images must be https links'; end if;
+  return new;
+end;
+$$;
+drop trigger if exists guard_site_content on public.site_content;
+create trigger guard_site_content before insert or update on public.site_content for each row execute function public.guard_site_content();
+drop trigger if exists audit_row on public.site_content;
+create trigger audit_row after insert or update or delete on public.site_content for each row execute function private.audit_row();
+
+-- =====================================================================
+-- 32. Opportunities posted by verified mentors and firms
+--     Verified = approved mentor, or a professional/firm account the team has verified.
+--     Their posts go live at once; other professionals' posts wait for review.
+-- =====================================================================
+
+alter table public.profiles add column if not exists firm_name text default '';     -- professionals posting for a practice
+alter table public.opportunities add column if not exists posted_by uuid references public.profiles (id) on delete set null;
+alter table public.opportunities add column if not exists poster_name text not null default '';
+alter table public.opportunities add column if not exists status text not null default 'published';
+alter table public.opportunities drop constraint if exists opportunities_status_check;
+alter table public.opportunities add constraint opportunities_status_check check (status in ('pending', 'published', 'rejected', 'closed'));
+alter table public.opportunities add column if not exists review_note text not null default '';
+alter table public.opportunities add column if not exists contact_email text not null default '';
+
+create or replace function public.is_verified_poster()
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.profiles where id = auth.uid() and approved and role in ('mentor', 'professional'));
+$$;
+grant execute on function public.is_verified_poster() to authenticated;
+
+create or replace function public.guard_opportunity()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare p public.profiles; staff boolean := public.has_perm('content.manage');
+begin
+  if current_setting('archmentor.internal', true) = '1' then return new; end if;
+  if new.url <> '' and new.url !~ '^https?://' then raise exception 'The link must start with https://'; end if;
+  if tg_op = 'INSERT' then
+    if staff then new.created_by := auth.uid(); return new; end if;
+    select * into p from public.profiles where id = auth.uid();
+    if p.id is null or p.role not in ('mentor', 'professional') then raise exception 'Only mentors and professionals can post opportunities'; end if;
+    if (select count(*) from public.opportunities where posted_by = p.id and created_at > now() - interval '1 day') >= 5 then raise exception 'You can post up to 5 opportunities a day'; end if;
+    new.posted_by := p.id; new.created_by := p.id;
+    new.poster_name := coalesce(nullif(p.firm_name, ''), nullif(p.organisation, ''), p.full_name);
+    new.status := case when p.approved then 'published' else 'pending' end;
+    new.published := p.approved; new.review_note := '';
+    return new;
+  end if;
+  if staff then
+    new.published := new.status = 'published';
+    return new;
+  end if;
+  if auth.uid() is distinct from old.posted_by then raise exception 'Not allowed'; end if;
+  new.posted_by := old.posted_by; new.poster_name := old.poster_name; new.created_by := old.created_by; new.review_note := old.review_note;
+  -- owners can close their post or edit it; edits by unverified posters go back to review
+  if new.status not in ('closed', old.status) then new.status := old.status; end if;
+  if new.status <> 'closed' then
+    new.status := case when public.is_verified_poster() then 'published' when old.status = 'rejected' then 'pending' else 'pending' end;
+  end if;
+  new.published := new.status = 'published';
+  return new;
+end;
+$$;
+drop trigger if exists guard_opportunity on public.opportunities;
+create trigger guard_opportunity before insert or update on public.opportunities for each row execute function public.guard_opportunity();
+
+create or replace function private.on_opportunity()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare p public.profiles;
+begin
+  if new.posted_by is null then return new; end if;
+  select * into p from public.profiles where id = new.posted_by;
+  if new.status = 'pending' and (tg_op = 'INSERT' or old.status <> 'pending') then
+    perform private.notify_perm('content.manage', 'Opportunity to review', new.title || ' · ' || new.poster_name, '/staff/content');
+  elsif tg_op = 'UPDATE' and new.status = 'published' and old.status = 'pending' and auth.uid() is distinct from new.posted_by then
+    perform private.notify(p.id, 'Your opportunity is live', new.title, '/opportunities');
+    perform private.send_email(p.email, p.full_name, 'Your opportunity is live: ' || new.title,
+      private.layout('Your post is live', '<p>Hello ' || private.esc(p.full_name) || ',</p><p><b>' || private.esc(new.title) || '</b> is now on the Opportunities page.</p>',
+        'See it', private.link('/opportunities')), 'opportunity-live');
+  elsif tg_op = 'UPDATE' and new.status = 'rejected' and old.status <> 'rejected' then
+    perform private.notify(p.id, 'Opportunity not published', coalesce(nullif(new.review_note, ''), new.title), '/dashboard?tab=opportunities');
+    perform private.send_email(p.email, p.full_name, 'About your opportunity: ' || new.title,
+      private.layout('Your post was not published', '<p>Hello ' || private.esc(p.full_name) || ',</p><p>We could not publish <b>' || private.esc(new.title) || '</b>.</p>'
+        || case when new.review_note <> '' then '<p style="padding:12px 16px;background:#f4f4f2;">' || private.para(new.review_note) || '</p>' else '' end
+        || '<p>You can edit it and send it again from your dashboard.</p>', 'Open your dashboard', private.link('/dashboard?tab=opportunities')), 'opportunity-rejected');
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists opportunity_event on public.opportunities;
+create trigger opportunity_event after insert or update of status on public.opportunities for each row execute function private.on_opportunity();
+
+select private.pol('opportunities', 'read', 'select', 'published or posted_by = auth.uid() or public.has_perm(''content.manage'')');
+select private.pol('opportunities', 'post own', 'insert', null, 'auth.uid() is not null');
+select private.pol('opportunities', 'edit own', 'update', 'posted_by = auth.uid()', 'posted_by = auth.uid()');
+select private.pol('opportunities', 'delete own', 'delete', 'posted_by = auth.uid()');
+
+-- Firms: professionals can be verified by staff with mentors.approve, same switch as mentors
+create or replace function private.on_professional_verified()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.role = 'professional' and new.approved and not old.approved then
+    perform private.notify(new.id, 'Your account is verified', 'You can now post opportunities that go live straight away.', '/dashboard?tab=opportunities');
+    perform private.send_email(new.email, new.full_name, 'Your account is verified',
+      private.layout('You are verified', '<p>Hello ' || private.esc(new.full_name) || ',</p><p>Your professional account' || coalesce(' for <b>' || private.esc(nullif(new.firm_name, '')) || '</b>', '')
+        || ' is verified. Opportunities you post now go live straight away.</p>', 'Post an opportunity', private.link('/dashboard?tab=opportunities')), 'firm-verified');
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists professional_verified on public.profiles;
+create trigger professional_verified after update of approved on public.profiles for each row execute function private.on_professional_verified();
+
 -- Internal functions stay private
 revoke all on all functions in schema private from public, anon, authenticated;

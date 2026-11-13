@@ -5,6 +5,7 @@ import { useAuth } from './auth.jsx';
 import { fmtDate, timeAgo, useLoad, useTitle } from './util.js';
 import { ErrorMsg, Loading } from './Bits.jsx';
 import { Status } from './Ui.jsx';
+import { T, Img } from './Content.jsx';
 
 function CallForm() {
   const { profile } = useAuth();
@@ -60,7 +61,7 @@ export function SupportPage() {
   return (
     <div className="wrap page-top">
       <p className="label">Support</p>
-      <h1 className="h-xl">How can we help?</h1>
+      <h1 className="h-xl"><T k="support.title">How can we help?</T></h1>
       <div className="grid-2 mt-64" style={{ alignItems: 'start' }}>
         <section className="stack gap-24">
           <h2 className="h-m">Write to us</h2>
@@ -81,7 +82,7 @@ export function SupportPage() {
         </section>
         <section className="stack gap-24">
           <h2 className="h-m">Prefer a phone call?</h2>
-          <p className="muted">Leave your number and a good time. Someone from our team calls you back.</p>
+          <p className="muted"><T k="support.call.text" block>Leave your number and a good time. Someone from our team calls you back.</T></p>
           <CallForm />
         </section>
       </div>

@@ -227,17 +227,46 @@ function PortfolioQueue({ perms }) {
   );
 }
 
+function OpportunityReview() {
+  const { data, loading, reload } = useLoad(() => platform.staffList('opportunities'));
+  const [notes, setNotes] = useState({});
+  if (loading) return <Loading />;
+  const pending = (data || []).filter((o) => o.status === 'pending');
+  return (
+    <section className="stack gap-16">
+      <h2 className="h-m">Opportunities waiting for review ({pending.length})</h2>
+      <p className="small muted">Posts from verified mentors and verified firms go live straight away; others wait here. To let a firm skip review, verify it under People.</p>
+      {!pending.length && <p className="empty">Nothing waiting.</p>}
+      {pending.map((o) => (
+        <div key={o.id} className="card-line stack gap-8">
+          <p style={{ fontSize: 18 }}>{o.title} <span className="small muted">· {o.kind} · {o.organisation || '—'} · posted by {o.poster_name}</span></p>
+          <p className="small" style={{ whiteSpace: 'pre-line', color: 'var(--ink-2)' }}>{o.description}</p>
+          <p className="small">{o.url && <a className="ul" href={o.url} target="_blank" rel="noopener noreferrer nofollow">{o.url}</a>} {o.contact_email}</p>
+          <div className="form-row" style={{ alignItems: 'end' }}>
+            <div className="field"><label htmlFor={`on-${o.id}`}>Note to the poster (needed if you decline)</label><input id={`on-${o.id}`} value={notes[o.id] || ''} onChange={(e) => setNotes({ ...notes, [o.id]: e.target.value })} /></div>
+            <button type="button" className="btn" onClick={async () => { await platform.reviewOpportunity(o.id, 'published', notes[o.id] || ''); reload(); }}>Publish</button>
+            <button type="button" className="ul" onClick={async () => { if (!notes[o.id]) { window.alert('Add a short note so the poster knows what to fix.'); return; } await platform.reviewOpportunity(o.id, 'rejected', notes[o.id]); reload(); }}>Decline</button>
+          </div>
+        </div>
+      ))}
+    </section>
+  );
+}
+
 function ContentSection() {
   return (
     <div className="stack gap-64">
+      <div className="notice-box">To change any heading, paragraph or picture on the public pages, open the page and press <b>Edit text &amp; images</b> (bottom-right corner).</div>
+      <OpportunityReview />
       <AdminPanel tab="videos" />
       <Collection table="opportunities" title="Opportunities"
         source={{ list: () => platform.staffList('opportunities'), save: (r) => platform.staffSave('opportunities', r), del: (id) => platform.staffDelete('opportunities', id) }}
-        columns={[['title', 'Title', (r) => <>{r.title}<br /><span className="small muted">{r.organisation}</span></>], ['kind', 'Type'], ['deadline', 'Deadline', (r) => (r.deadline ? fmtDate(r.deadline) : 'rolling')], ['published', 'Live', (r) => (r.published ? 'yes' : 'no')]]}
-        blank={{ title: '', organisation: '', kind: 'Internship', location: '', remote: false, url: '', description: '', deadline: '', published: true }}
-        prepare={(r) => ({ ...r, deadline: r.deadline || null })}
+        columns={[['title', 'Title', (r) => <>{r.title}<br /><span className="small muted">{r.organisation}{r.poster_name ? ` · by ${r.poster_name}` : ''}</span></>], ['kind', 'Type'], ['deadline', 'Deadline', (r) => (r.deadline ? fmtDate(r.deadline) : 'rolling')], ['status', 'Status', (r) => <Status s={r.status === 'published' ? 'approved' : 'pending'} label={r.status || (r.published ? 'published' : 'hidden')} />]]}
+        blank={{ title: '', organisation: '', kind: 'Internship', location: '', remote: false, url: '', description: '', deadline: '', status: 'published' }}
+        prepare={({ poster_name, posted_by, review_note, ...r }) => ({ ...r, deadline: r.deadline || null, published: r.status === 'published' })}
         fields={[{ key: 'title', label: 'Title', required: true }, { key: 'organisation', label: 'Office / organiser' }, { key: 'kind', label: 'Type', type: 'select', options: ['Internship', 'Job', 'Competition', 'Scholarship', 'Workshop', 'Fellowship'].map((x) => [x, x]) },
-          { key: 'location', label: 'Location' }, { key: 'remote', label: 'Remote', type: 'checkbox' }, { key: 'url', label: 'Link to apply', type: 'url' }, { key: 'deadline', label: 'Deadline', type: 'date' }, { key: 'description', label: 'Description', type: 'textarea' }, { key: 'published', label: 'Show on the site', type: 'checkbox' }]} />
+          { key: 'location', label: 'Location' }, { key: 'remote', label: 'Remote', type: 'checkbox' }, { key: 'url', label: 'Link to apply', type: 'url' }, { key: 'deadline', label: 'Deadline', type: 'date' }, { key: 'description', label: 'Description', type: 'textarea' },
+          { key: 'status', label: 'Status', type: 'select', options: [['published', 'Published'], ['pending', 'Waiting for review'], ['rejected', 'Declined'], ['closed', 'Closed']] }]} />
       <Collection table="resources" title="Resources"
         source={{ list: () => platform.staffList('resources'), save: (r) => platform.staffSave('resources', r), del: (id) => platform.staffDelete('resources', id) }}
         columns={[['title', 'Title'], ['kind', 'Type'], ['published', 'Live', (r) => (r.published ? 'yes' : 'no')]]}

@@ -6,6 +6,7 @@ import { SOCIAL } from './config.js';
 import { Close, Instagram, LinkedIn, Search, WhatsApp, YouTube } from './Icons.jsx';
 import Notifications from './Notifications.jsx';
 import InstallApp from './InstallApp.jsx';
+import { T, Img } from './Content.jsx';
 
 export function Brand({ size }) {
   return <span className="brand" style={size ? { fontSize: size } : undefined}><b>Arch</b><span>Mentor</span></span>;
@@ -106,7 +107,7 @@ function Footer() {
       <div className="wrap cols">
         <div>
           <p style={{ marginBottom: 10 }}><Brand size={18} /></p>
-          <p className="muted" style={{ maxWidth: '32ch' }}>Helping architecture students learn from experienced mentors, explore career paths and make informed academic decisions.</p>
+          <p className="muted" style={{ maxWidth: '32ch' }}><T k="footer.about" block>Helping architecture students learn from experienced mentors, explore career paths and make informed academic decisions.</T></p>
         </div>
         <nav aria-label="Explore">
           <span className="muted">Explore</span>
@@ -151,13 +152,46 @@ function ScrollToTop() {
   return null;
 }
 
-// Short fade between pages (off when the visitor prefers reduced motion — see styles.css)
+// Page rise between routes + sections that reveal as they scroll into view (see styles.css → motion)
+const REVEAL = '.split, .grid > *, .card-line, .panel, .stats > *, .index li, .steps li, .mentor-card, figure, .grid-2 > *, .grid-3 > *';
 function RouteFade({ children }) {
   const { pathname } = useLocation();
+  useEffect(() => {
+    if (!('IntersectionObserver' in window)) return undefined;
+    const io = new IntersectionObserver((entries) => entries.forEach((e) => {
+      if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+    }), { rootMargin: '0px 0px -8% 0px', threshold: 0.06 });
+    const seen = new WeakSet();
+    const scan = () => {
+      document.querySelectorAll(`#main ${REVEAL.split(', ').join(', #main ')}`).forEach((el) => {
+        if (seen.has(el) || el.closest('.staff-main') || el.closest('.rv:not(.in)')) return;
+        seen.add(el);
+        const r = el.getBoundingClientRect();
+        if (r.top < window.innerHeight * 0.92) return;          // already on screen: leave it alone
+        const sib = el.parentElement ? [...el.parentElement.children].indexOf(el) : 0;
+        el.style.setProperty('--d', `${Math.min(sib, 5) * 70}ms`);
+        el.classList.add('rv'); io.observe(el);
+      });
+    };
+    scan();
+    const mo = new MutationObserver(() => scan());
+    mo.observe(document.getElementById('main'), { childList: true, subtree: true });
+    return () => { io.disconnect(); mo.disconnect(); };
+  }, [pathname]);
   return <div key={pathname.split('/').slice(0, 3).join('/')} className="route-fade">{children}</div>;
 }
 
+function useHeaderShadow() {
+  useEffect(() => {
+    const h = document.querySelector('.header');
+    const on = () => h?.classList.toggle('scrolled', window.scrollY > 8);
+    on(); window.addEventListener('scroll', on, { passive: true });
+    return () => window.removeEventListener('scroll', on);
+  }, []);
+}
+
 export default function Layout() {
+  useHeaderShadow();
   return (
     <>
       <a href="#main" className="sr-only">Skip to content</a>

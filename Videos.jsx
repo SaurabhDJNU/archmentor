@@ -2,6 +2,7 @@ import * as api from './api.js';
 import { useLoad, useTitle } from './util.js';
 import { SOCIAL } from './config.js';
 import { Arrow, ErrorMsg, Loading, ShortCard, VideoPlayer } from './Bits.jsx';
+import { T, Img } from './Content.jsx';
 
 export default function Videos() {
   useTitle('Videos');
@@ -15,7 +16,7 @@ export default function Videos() {
     <div className="wrap page-top">
       <p className="label" style={{ marginBottom: 24 }}>Videos</p>
       <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-end', gap: 24 }}>
-        <h1 className="h-xl" style={{ maxWidth: '16ch' }}>Talks and short studio lessons.</h1>
+        <h1 className="h-xl" style={{ maxWidth: '16ch' }}><T k="videos.title">Talks and short studio lessons.</T></h1>
         {SOCIAL.youtube && <a href={SOCIAL.youtube} target="_blank" rel="noopener noreferrer" className="ul link row">Subscribe on YouTube <Arrow /></a>}
       </div>
       {loading && <Loading />}
