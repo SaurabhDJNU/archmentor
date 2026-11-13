@@ -32,7 +32,7 @@ function DemoBar() {
   return (
     <div className="demo-bar" role="note">
       <div className="wrap">
-        <span>Demo mode: data is saved only in this browser. Log in as <b>student@demo.archmentor</b>, <b>mentor@demo.archmentor</b> or <b>admin@demo.archmentor</b>, password <b>demo1234</b>.</span>
+        <span>Demo mode: data is saved only in this browser and no real emails are sent. Log in as <b>student@</b>, <b>mentor@</b>, <b>professional@</b> or <b>admin@demo.archmentor</b>, password <b>demo1234</b>.</span>
         <button type="button" onClick={() => { api.resetDemo(); refresh(); window.location.reload(); }}>Reset demo data</button>
       </div>
     </div>
@@ -55,7 +55,7 @@ function Notice() {
   return (
     <div className="notice">
       <div className="wrap">
-        <p style={{ padding: '8px 0' }}>Free live {session.kind ? session.kind.toLowerCase() : 'session'}: “{session.title}” <Link to={`/sessions#${session.id}`}>Reserve a seat</Link></p>
+        <p style={{ padding: '8px 0' }}>Free live session: “{session.title}” <Link to={`/sessions/${session.slug || session.id}`}>Reserve a seat</Link></p>
         <button type="button" className="icon-btn" aria-label="Dismiss notice" onClick={hide}><Close /></button>
       </div>
     </div>
@@ -72,9 +72,9 @@ function Header() {
         <nav className="nav" aria-label="Main">
           <NavLink to="/mentors">Mentors</NavLink>
           <NavLink to="/sessions">Sessions</NavLink>
+          <NavLink to="/community">Community</NavLink>
           <NavLink to="/journal">Journal</NavLink>
           <NavLink to="/videos">Videos</NavLink>
-          <NavLink to="/ask">Ask</NavLink>
           {user ? (
             <>
               <NavLink to="/dashboard">{profile?.role === 'admin' ? 'Admin' : 'Dashboard'}</NavLink>
@@ -108,13 +108,14 @@ function Footer() {
           <span className="muted">Explore</span>
           <Link to="/mentors">Find mentors</Link>
           <Link to="/sessions">Live sessions</Link>
+          <Link to="/community">Community</Link>
           <Link to="/videos">Videos</Link>
           <Link to="/journal">Journal</Link>
         </nav>
         <nav aria-label="Get involved">
           <span className="muted">Get involved</span>
           <Link to="/signup?role=mentor">Become a mentor</Link>
-          <Link to="/ask">Ask a mentor</Link>
+          <Link to="/community/ask">Ask the community</Link>
           <Link to="/write">Write for the Journal</Link>
           <Link to="/login">Log in</Link>
           <Link to="/signup">Create account</Link>

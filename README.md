@@ -1,90 +1,131 @@
 # ArchMentor
 
-A mentorship platform for architecture students: mentor profiles, session requests, free live sessions, a Journal, videos, a public Q&A and an email list, with dashboards for students, mentors and admins.
+Architecture mentorship website: verified mentors with bookable services, approval-based booking with Calendly scheduling, free live sessions with seat limits, a community Q&A forum, a Journal with a full writing editor, videos, and email notifications for every step.
 
-Built with React (Vite) and [Supabase](https://supabase.com) (free tier) for accounts and data. It runs as a static site, so it can be hosted free on GitHub Pages or Vercel.
+**Stack (free except the domain):** React (Vite) · Supabase (database, logins, image storage, email triggers) · Brevo (sends the emails, 300 a day free) · Cloudflare Pages (hosting) · GoDaddy (domain) · the client's Gmail (admin inbox).
 
-## What works
+---
 
-| For | Features |
+## What the website does
+
+| Who | What they can do |
 | --- | --- |
-| Visitors | Home page, mentor list with filters, mentor profiles, live sessions with free seat registration, Journal with search and topics, story pages with share and an optional video, a Videos page (YouTube talks and Shorts), Ask a mentor, Write for the Journal, email subscribe (every story or weekly digest) |
-| Students | Sign up / log in / reset password, request a session from a mentor, follow request status, see the meeting link and the mentor's note, cancel a pending request, edit their profile |
-| Mentors | Apply as a mentor (shown publicly only after admin approval), edit their public profile (upload a photo, bio, what they help with), approve or decline requests, add a meeting link and a note, mark sessions as done, write Journal stories and send them for review |
-| Admins | Approve mentors and manage people, see all requests, create and edit live sessions and download registrations, write and publish Journal stories in a full-page editor (paste images straight in), add YouTube videos, answer and publish student questions, review story ideas, download the subscriber list as CSV |
+| Visitors | Browse mentors (search, expertise filter, sort by price or name), view profiles and services, see live sessions and seats left, read the community and Journal, watch videos, subscribe by email |
+| Students | Sign up, book a mentor's service, get approval by email, pick a time on the mentor's Calendly, cancel, reserve seats in live sessions, ask and answer community questions, vote answers helpful |
+| Mentors | Apply, complete their profile (photo, expertise, experience, firm, Calendly, portfolio), add services (title, category, duration, price or free), approve or decline requests with a note, write Journal stories for review, take part in the community |
+| Professionals | Join the community and live sessions without being a mentor |
+| Admin | Verify mentors, edit anyone's profile and services, see all bookings, create live sessions (seats, Zoom link, featured), download registrations, publish stories, moderate the community, manage videos, story ideas and subscribers, see every email sent, change email settings |
 
-Security is enforced in the database with row-level security: students can't see each other's requests, nobody can make themselves an admin, mentors can't edit a student's message, and form data such as subscribers and registrations is visible only to admins.
+### Emails the website sends
 
-## Try it in demo mode
+| Event | Who gets it |
+| --- | --- |
+| Sign-up confirmation, password reset | The person (sent by Supabase through Brevo) |
+| Welcome after confirming | New student, professional or mentor |
+| New mentor application | Mentor (received) and admin (please review) |
+| Mentor verified | Mentor |
+| New booking request | Mentor (with the student's message) and student (copy) |
+| Booking approved | Student, with the Calendly link and the mentor's note |
+| Booking declined / cancelled / done | Student / mentor / student |
+| Seat reserved | Registrant, with the joining link |
+| Reminder within 24 hours of a session | Every registrant (checked every hour) |
+| New live session published | All subscribers (once) |
+| New answer to your question | The person who asked |
+| Story sent for review / published | Admin / the mentor who wrote it |
+| New Journal story | Subscribers who chose "every story" |
+| Weekly digest (Sundays, 9:00 IST) | Subscribers who chose "weekly" |
+| Story idea submitted | The writer (copy) and admin |
+| Subscribed | The subscriber, with an unsubscribe link |
+| Test email | Admin (button in Admin → Emails) |
 
-With no Supabase keys, the site runs in **demo mode**: sample data is saved in your browser only, and a yellow bar shows the demo logins.
+Every newsletter-type email has a one-click unsubscribe link. Admin → Emails shows each email and whether Brevo accepted it.
 
-| Role | Email | Password |
-| --- | --- | --- |
-| Student | `student@demo.archmentor` | `demo1234` |
-| Mentor | `mentor@demo.archmentor` | `demo1234` |
-| Admin | `admin@demo.archmentor` | `demo1234` |
+---
 
-To run it on your computer:
+## Try it first (demo mode)
+
+Without Supabase keys the site runs in demo mode with sample data saved only in your browser (no real emails). Log in with password `demo1234` as `student@demo.archmentor`, `mentor@demo.archmentor`, `professional@demo.archmentor` or `admin@demo.archmentor`.
 
 ```bash
 npm install
 npm run dev
 ```
 
-## Go live with Supabase (about 15 minutes)
+---
 
-1. **Create a project.** Sign in at [supabase.com](https://supabase.com) and create a new project (the free plan is enough).
-2. **Create the database.** Open **SQL Editor → New query**, paste everything from [`schema.sql`](schema.sql) and click **Run**. Optionally run [`seed.sql`](seed.sql) too, for a starter live session and two Journal stories.
-3. **Copy the keys.** In **Project Settings → API**, copy the **Project URL** and the **anon public** key.
-4. **Add them to GitHub.** In this repository go to **Settings → Secrets and variables → Actions → New repository secret** and add:
-   - `VITE_SUPABASE_URL`: the Project URL
-   - `VITE_SUPABASE_ANON_KEY`: the anon public key
-5. **Turn on GitHub Pages.** In **Settings → Pages**, set **Source** to **GitHub Actions**. Then open **Actions → Deploy to GitHub Pages → Run workflow** (or push any commit). The site appears at `https://<your-username>.github.io/archmentor/`.
-6. **Set the sign-in links.** In Supabase go to **Authentication → URL Configuration**. Set **Site URL** to your site address, and add `https://<your-username>.github.io/archmentor/**` under **Redirect URLs**. This makes the confirmation and password-reset emails link back to your site.
-7. **Make yourself admin.** Sign up on the live site with your own email, then run this in the SQL Editor (with your email):
+## Going live: step by step (about 1–2 hours, once)
 
+Do the steps in this order. Write down each key or password as you go.
+
+### 1. Gmail (2 min)
+Create the client's Gmail, e.g. `archmentor.team@gmail.com`. It receives admin alerts and replies from users, and is used to sign up for the other services.
+
+### 2. Domain on GoDaddy, DNS on Cloudflare (15 min + waiting)
+1. Buy the domain on GoDaddy, e.g. `archmentor.in`.
+2. Create a free account at **cloudflare.com** with the Gmail. Click **Add a domain**, type your domain, choose the **Free** plan.
+3. Cloudflare shows two **nameservers** (like `xxx.ns.cloudflare.com`). In GoDaddy: **My Products → your domain → DNS → Nameservers → Change → "I'll use my own nameservers"**, paste both, save.
+4. Wait until Cloudflare emails you that the domain is active (minutes to a few hours). From now on, all DNS records are added in **Cloudflare → your domain → DNS**, not in GoDaddy.
+
+### 3. Supabase: database and logins (20 min)
+1. Sign up at **supabase.com** with the Gmail. **New project**: name `archmentor`, a strong database password (save it), region **Mumbai** (or closest), Free plan.
+2. **SQL Editor → New query**: paste all of `schema.sql`, click **Run**. It should finish with "Success". Optionally run `seed.sql` for a starter session and two Journal stories.
+3. **Project Settings → API Keys**: copy the **Project URL** and the **Publishable key** (or the legacy **anon** key). Never use the secret / service_role key in the website.
+
+### 4. Cloudflare Pages: put the website online (10 min)
+1. In Cloudflare: **Workers & Pages → Create → Pages → Connect to Git**, pick the GitHub repository.
+2. Build settings: **Framework preset:** Vite · **Build command:** `npm run build` · **Build output directory:** `dist`.
+3. **Environment variables** (Production): `VITE_SUPABASE_URL` = Project URL, `VITE_SUPABASE_ANON_KEY` = Publishable key. Also add `NODE_VERSION` = `20`.
+4. **Save and Deploy.** You get an address like `archmentor.pages.dev`.
+5. In the Pages project: **Custom domains → Set up a domain**, enter `archmentor.in`, then add `www.archmentor.in` too. Cloudflare creates the DNS records.
+6. If you used GitHub Pages before: in GitHub **Settings → Pages**, set Source to **None**, and delete `.github/workflows/deploy.yml`.
+
+### 5. Brevo: the email sender (20 min + waiting)
+1. Sign up at **brevo.com** with the Gmail (free plan). Fill in the company profile if asked; Brevo may review a new account before it can send.
+2. **Senders, Domains & Dedicated IPs → Domains → Add a domain**: your domain. Choose to authenticate it yourself; Brevo lists 3–4 DNS records (a `brevo-code` TXT, DKIM records, and a DMARC TXT). Add each one in **Cloudflare → DNS → Add record** exactly as shown (for CNAME records, switch the orange cloud to **DNS only**). Click **Authenticate** in Brevo when done.
+3. **Senders → Add a sender**: name `ArchMentor`, email `noreply@yourdomain` (it does not need a mailbox).
+4. **SMTP & API → API Keys → Generate a new API key**. Copy it (starts with `xkeysib-`). This is for the website's notification emails.
+5. **SMTP & API → SMTP**: note the **SMTP server** (`smtp-relay.brevo.com`), **port** `587`, **login** (looks like `xxxx@smtp-brevo.com`) and **generate an SMTP key**. These are for Supabase's login emails.
+
+### 6. Connect Supabase logins to Brevo (10 min)
+In Supabase:
+1. **Authentication → Emails → SMTP Settings → Enable custom SMTP**: Sender email `noreply@yourdomain`, Sender name `ArchMentor`, Host `smtp-relay.brevo.com`, Port `587`, Username = Brevo SMTP login, Password = Brevo SMTP key. Save.
+2. **Authentication → Rate Limits**: set "emails sent per hour" to `100`.
+3. **Authentication → Sign In / Providers → Email**: keep **Confirm email** on; set minimum password length to `8`.
+4. **Authentication → URL Configuration**: Site URL = `https://yourdomain`; Redirect URLs: add `https://yourdomain/**`, `https://www.yourdomain/**` and `https://archmentor.pages.dev/**`.
+5. Optional: **Authentication → Emails → Templates** to reword the confirmation and reset emails.
+
+### 7. Make yourself admin and switch on the website's emails (5 min)
+1. Open the live site, **Get started**, sign up with the client's Gmail, confirm the email.
+2. Supabase **SQL Editor**, run (with that email):
    ```sql
-   update public.profiles set role = 'admin', approved = true where email = 'you@example.com';
+   update public.profiles set role = 'admin', approved = true where email = 'archmentor.team@gmail.com';
    ```
+3. Log out and in. Go to **Admin → Settings**: website address `https://yourdomain`, admin email and "replies go to" = the Gmail, "send emails from" = `noreply@yourdomain`, paste the **Brevo API key**, Save.
+4. **Admin → Emails → Send a test email to the admin.** It should arrive in the Gmail within a minute and show as **sent**.
 
-   Log out and back in. You'll see **Admin** in the menu.
+### 8. Keep the free database awake
+Supabase pauses free projects after a week with no activity. The workflow `.github/workflows/keepalive.yml` pings it every two days. In GitHub: **Settings → Secrets and variables → Actions → New repository secret**, add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (same values as in Cloudflare). Then **Actions → Keep Supabase awake → Run workflow** once to check it turns green. GitHub turns scheduled workflows off after 60 days without any commit; it emails you first, and one click re-enables it.
 
-The anon key is meant to be public; the database rules protect the data. Never put the `service_role` key in this project.
+---
 
-### Hosting on Vercel instead
+## Limits of the free plan
 
-Import the repository at [vercel.com/new](https://vercel.com/new), add the same two environment variables, and deploy. `vercel.json` already handles page routing. Use your Vercel address in step 6.
+- **Brevo:** 300 emails a day in total. Plenty for bookings and alerts; a newsletter to a big list may need the paid plan (from about $9/month).
+- **Supabase:** 500 MB database, 1 GB image storage, 50,000 monthly users; paused after a week of no activity (handled by step 8).
+- **Cloudflare Pages:** free for business use; unlimited visitors.
+- **Payments:** prices are shown on services, but online payment is not built in. For paid sessions, the mentor shares payment details after approving.
 
-### Custom domain
+## Things to edit later
+- Social links and contact email: `config.js`.
+- Service categories, expertise list, glossary: `seed.js` (the lists at the bottom).
+- Colours and fonts: top of `styles.css`.
+- Everything else (mentors, services, sessions, stories, videos) is edited on the live site.
 
-On GitHub Pages, add the domain in **Settings → Pages**, then add a repository **variable** (not a secret) named `BASE_PATH` with the value `/`, and re-run the workflow.
+## Updating the database after a code update
+If a new version changes `schema.sql`, run the whole file again in the SQL Editor. It keeps all data.
 
-## Things to edit
-
-- **Social links and contact email:** [`config.js`](config.js). Icons only show for links you fill in.
-- **Studio words** (glossary on the home page) and **demo data:** [`seed.js`](seed.js).
-- **Colours, fonts and spacing:** [`styles.css`](styles.css) (variables at the top).
-- **Service names and descriptions:** `SERVICES` in [`util.js`](util.js).
-
-Everything else, including mentors, sessions, stories, videos and answers, is managed from the admin dashboard on the live site.
-
-## Good to know
-
-- **Emails.** Supabase sends sign-up confirmation and password-reset emails. The site does **not** send newsletters or session reminders by itself: download subscribers and registrations as CSV from the admin dashboard and send them from your own email or a mailing tool. Supabase's built-in email has a low hourly limit; for real traffic, connect your own SMTP in **Authentication → Emails → SMTP settings**.
-- **Images.** Upload, paste (Ctrl + V) or drag images straight in: mentor photos, story covers and pictures inside stories. Large photos are shrunk in the browser before upload and stored in Supabase Storage (bucket `images`, created by `schema.sql`; the free plan includes 1 GB).
-- **Writing.** Admins and approved mentors write in a full-page editor (Dashboard → Journal / My stories → Write a new story) with headings, bold, lists, quotes, links, images and YouTube videos. Drafts save automatically. Mentors send stories for review; admins publish.
-- **Updating the site later.** If a new version changes `schema.sql`, just run the whole file again in the SQL Editor. It keeps your data.
-- **Videos.** Paste any YouTube link in Admin → Videos. The player loads from youtube-nocookie.com only after a visitor clicks play.
-
-## Project structure
-
-All files sit at the top level, so the repository can be uploaded through the GitHub website without folders. The only folder is `.github/workflows/`, which holds the deployment file.
-
-- `main.jsx`: app entry and page routes
-- `Layout.jsx`, `Bits.jsx`, `Icons.jsx`, `Markdown.jsx`, `RichText.jsx`: shared parts
-- `Editor.jsx`, `RichEditor.jsx`, `ImageInput.jsx`: story editor and image upload
-- `Home.jsx`, `Mentors.jsx`, `MentorProfile.jsx`, `Sessions.jsx`, `Journal.jsx`, `Post.jsx`, `Videos.jsx`, `Ask.jsx`, `Write.jsx`, `AccountPages.jsx`, `Dashboard.jsx`, `NotFound.jsx`: pages
-- `api.js`: data layer (Supabase or demo mode); `auth.jsx`: login state; `util.js`: helpers
-- `config.js`: social links and contact email; `seed.js`: demo content and studio words
-- `schema.sql`, `seed.sql`: Supabase database setup
+## Files
+All website files sit at the top level (no folders, so the GitHub website upload works). The only folder is `.github/workflows/` for the keep-awake job.
+- `main.jsx` routes · `Layout.jsx` header and footer · `api.js` all data (Supabase or demo) · `auth.jsx` login state
+- Pages: `Home`, `Mentors`, `MentorProfile`, `Book`, `Sessions`, `Community`, `Journal`, `Post`, `Editor`, `Videos`, `Write`, `AccountPages`, `Dashboard`, `Unsubscribe`, `NotFound`
+- `schema.sql` database, security rules and all emails · `seed.sql` optional starter content

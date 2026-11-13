@@ -44,7 +44,7 @@ function Finder() {
           <ul className="list-lines">{BRING[need].map((b) => <li key={b}>{b}</li>)}</ul>
         </div>
       </div>
-      <Link to={`/mentors?service=${need}`} className="ul link row mt-32">See mentors for {SERVICES[need].title} <Arrow /></Link>
+      <Link to={`/mentors?category=${SERVICES[need].category}`} className="ul link row mt-32">See mentors for {SERVICES[need].title} <Arrow /></Link>
     </div>
   );
 }
@@ -104,7 +104,7 @@ export default function Home() {
         <ol className="index">
           {Object.entries(SERVICES).map(([id, s], i) => (
             <li key={id}>
-              <Link to={`/mentors?service=${id}`} className="row">
+              <Link to={`/mentors?category=${s.category}`} className="row">
                 <span className="no">0{i + 1}</span>
                 <span className="t">{s.title}</span>
                 <span className="d">{s.text}</span>
@@ -126,7 +126,7 @@ export default function Home() {
       {session && (
         <Split id="session" label="Free live session">
           <SessionCard s={session} big />
-          <Link to={`/sessions#${session.id}`} className="ul link row mt-32">Reserve your seat <Arrow /></Link>
+          <Link to={`/sessions/${session.slug || session.id}`} className="ul link row mt-32">Reserve your seat <Arrow /></Link>
         </Split>
       )}
 
@@ -168,12 +168,12 @@ export default function Home() {
         <div className="grid grid-wide">{(posts.data || []).slice(0, 2).map((p) => <PostCard key={p.id} p={p} />)}</div>
       </Split>
 
-      <Split label="Ask a mentor">
+      <Split label="Community">
         <div className="split" style={{ gap: 48 }}>
           <div style={{ flex: '3 1 360px', minWidth: 0 }}>
-            <p className="h-l">Stuck on something? Ask it here.</p>
-            <p style={{ margin: '12px 0 24px', fontSize: 15, color: 'var(--ink-2)' }}>A mentor answers selected questions in public. Your name is only shown if you allow it.</p>
-            <Link to="/ask" className="ul link row">Ask a question <Arrow /></Link>
+            <p className="h-l">Ask. Share. Learn together.</p>
+            <p style={{ margin: '12px 0 24px', fontSize: 15, color: 'var(--ink-2)' }}>Real questions and practical advice from architecture students, mentors and professionals. You get an email when someone answers.</p>
+            <div className="actions"><Link to="/community/ask" className="ul link row">Ask a question <Arrow /></Link><Link to="/community" className="link muted">Browse questions</Link></div>
           </div>
           <div className="panel stack gap-16" style={{ flex: '2 1 260px', minWidth: 0, alignSelf: 'flex-start', padding: 32 }}>
             <p className="small muted">Write for the Journal</p>

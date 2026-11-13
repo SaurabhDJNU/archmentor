@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import * as api from './api.js';
-import { fmtDate, initials, share, ytThumb, ytUrl } from './util.js';
+import { fmtDate, fmtSessionTime, initials, share, ytThumb, ytUrl } from './util.js';
 import { Play, Share } from './Icons.jsx';
 
 export const Arrow = () => <span className="arrow" aria-hidden="true">→</span>;
@@ -155,11 +155,11 @@ export function SessionCard({ s, big }) {
   return (
     <div id={s.id}>
       <p className={big ? 'h-xl' : 'h-l'} style={{ maxWidth: '16ch' }}>{s.title}</p>
-      {s.description && <p className="lead" style={{ marginTop: 24, maxWidth: '56ch' }}>{s.description}</p>}
+      {(s.subtitle || s.description) && <p className="lead" style={{ marginTop: 24, maxWidth: '56ch' }}>{s.subtitle || s.description}</p>}
       <dl className="facts">
-        <div><dt>Date</dt><dd>{s.starts_at ? fmtDate(s.starts_at, true) : 'To be announced'}</dd></div>
-        <div><dt>Format</dt><dd>{s.format || 'Online'}</dd></div>
-        <div><dt>Registration</dt><dd>Free</dd></div>
+        <div><dt>When</dt><dd>{fmtSessionTime(s.starts_at, s.ends_at)}</dd></div>
+        <div><dt>Where</dt><dd>{s.platform || 'Online'}</dd></div>
+        <div><dt>Registration</dt><dd>Free{s.capacity ? ` · ${s.capacity} seats` : ''}</dd></div>
         <div><dt>Type</dt><dd>{s.kind || 'Live session'}</dd></div>
       </dl>
     </div>
