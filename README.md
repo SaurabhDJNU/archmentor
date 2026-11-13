@@ -1,6 +1,6 @@
 # ArchMentor
 
-Architecture mentorship website: verified mentors with bookable services, approval-based booking with Calendly scheduling, free live sessions with seat limits, a community Q&A forum, a Journal with a full writing editor, videos, and email notifications for every step.
+Architecture mentorship platform: verified mentors with bookable services and weekly availability, slot booking with online payment (Razorpay, sandbox first), a private portfolio review studio, live sessions (free or paid), a community Q&A forum with moderation, a Journal with a full writing editor, videos, opportunities and resources, support tickets and call-backs, a staff workspace with roles and permissions, finance (commission rules, append-only ledger, refunds, two-person payouts), an audit log, in-app notifications and email for every step. Installable as an app (PWA).
 
 **Stack (free except the domain):** React (Vite) · Supabase (database, logins, image storage, email triggers) · Brevo (sends the emails, 300 a day free) · Cloudflare Pages (hosting) · GoDaddy (domain) · the client's Gmail (admin inbox).
 
@@ -14,7 +14,10 @@ Architecture mentorship website: verified mentors with bookable services, approv
 | Students | Sign up, book a mentor's service, get approval by email, pick a time on the mentor's Calendly, cancel, reserve seats in live sessions, ask and answer community questions, vote answers helpful |
 | Mentors | Apply, complete their profile (photo, expertise, experience, firm, Calendly, portfolio), add services (title, category, duration, price or free), approve or decline requests with a note, write Journal stories for review, take part in the community |
 | Professionals | Join the community and live sessions without being a mentor |
-| Admin | Verify mentors, edit anyone's profile and services, see all bookings, create live sessions (seats, Zoom link, featured), download registrations, publish stories, moderate the community, manage videos, story ideas and subscribers, see every email sent, change email settings |
+| Students (new) | Pick a free slot and pay online, move a booking, request refunds, submit a portfolio (private files) and get a scored review with one follow-up, save opportunities and resources, open support tickets, request a call-back, in-app notifications |
+| Mentors (new) | Weekly hours and time off (no double booking), see what they receive after commission, assigned portfolio reviews with a rubric, earnings and payout status, payout details (no full account numbers stored) |
+| Staff | Sign in at `/staff/login`. Start with **no access**; the main admin gives roles (call manager, support, email operator, Journal editor, content manager, booking coordinator, finance operator, portfolio coordinator, analyst) and individual grant/block overrides with a reason. Finance, audit and admin tools need two-step sign-in (authenticator app). Suspension signs them out everywhere. |
+| Main admin | Everything above plus staff invitations and permissions, settings, commission rules, approving payouts above the limit. Every sensitive change lands in the append-only audit log. |
 
 ### Emails the website sends
 
@@ -37,6 +40,12 @@ Architecture mentorship website: verified mentors with bookable services, approv
 | Story idea submitted | The writer (copy) and admin |
 | Subscribed | The subscriber, with an unsubscribe link |
 | Test email | Admin (button in Admin → Emails) |
+| Slot held / pay to confirm, payment confirmed, booking rescheduled, unpaid hold released | Student (and mentor where relevant) |
+| Refund processed, payout sent | Student / mentor |
+| Portfolio received, mentor assigned, feedback ready | Student; the assigned mentor gets the assignment |
+| Support ticket received / reply, call-back requested / scheduled | User; staff with the permission get an in-app alert, admin an email |
+| Staff invitation | The invited person |
+| Email campaigns (approved by a second person) | Chosen audience, with unsubscribe link; sent in daily batches within the Brevo limit |
 
 Every newsletter-type email has a one-click unsubscribe link. Admin → Emails shows each email and whether Brevo accepted it.
 
@@ -44,7 +53,9 @@ Every newsletter-type email has a one-click unsubscribe link. Admin → Emails s
 
 ## Try it first (demo mode)
 
-Without Supabase keys the site runs in demo mode with sample data saved only in your browser (no real emails). Log in with password `demo1234` as `student@demo.archmentor`, `mentor@demo.archmentor`, `professional@demo.archmentor` or `admin@demo.archmentor`.
+`npm run dev` without Supabase keys runs demo mode with sample data saved only in your browser (no real emails or payments). Log in with password `demo1234` as `student@`, `mentor@`, `professional@`, `staff@`, `finance@` (two-step code `123456`) or `admin@demo.archmentor`.
+
+A **production build without Supabase keys shows a "not connected" page** (fails closed). For a public demo preview set `VITE_DEMO_MODE=true` in the hosting settings.
 
 ```bash
 npm install
@@ -100,10 +111,33 @@ In Supabase:
    ```sql
    update public.profiles set role = 'admin', approved = true where email = 'archmentor.team@gmail.com';
    ```
-3. Log out and in. Go to **Admin → Settings**: website address `https://yourdomain`, admin email and "replies go to" = the Gmail, "send emails from" = `noreply@yourdomain`, paste the **Brevo API key**, Save.
-4. **Admin → Emails → Send a test email to the admin.** It should arrive in the Gmail within a minute and show as **sent**.
+3. Log out and in — you land in the **Workspace**. Go to **Workspace → Settings**: website address `https://yourdomain`, admin email and "replies go to" = the Gmail, "send emails from" = `noreply@yourdomain`, paste the **Brevo API key**, Save.
+4. **Workspace → Email log → Send a test email to the admin.** It should arrive in the Gmail within a minute and show as **sent**.
 
-### 8. Keep the free database awake
+### 8. Online payments with Razorpay — test mode first (30 min, optional)
+Until you do this, **Settings → Online payments = Off** and paid services work as before (the mentor arranges payment).
+1. Create a Razorpay account (free; you pay a fee only per payment). Stay in **Test mode**. **Account & Settings → API Keys → Generate test key**: you get a Key Id (`rzp_test_…`) and a Key Secret.
+2. Supabase → **Edge Functions → Deploy a new function → Via editor**, four times. Name each exactly as below and paste the matching file from this repository:
+   | Function name | File | "Enforce JWT verification" |
+   | --- | --- | --- |
+   | `create-checkout-order` | `edge-create-checkout-order.ts` | on |
+   | `verify-payment` | `edge-verify-payment.ts` | on |
+   | `request-refund` | `edge-request-refund.ts` | on |
+   | `payment-webhook` | `edge-payment-webhook.ts` | **off** (Razorpay calls it; it checks Razorpay's signature instead) |
+3. Supabase → **Edge Functions → Secrets**: add `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` and `RAZORPAY_WEBHOOK_SECRET` (make up a long random string). **Secrets never go in Cloudflare, GitHub or any `VITE_` variable.**
+4. Razorpay → **Webhooks → Add new webhook**: URL `https://<your-project>.supabase.co/functions/v1/payment-webhook`, the same secret, events `payment.captured`, `payment.failed`, `refund.processed`, `refund.failed`.
+5. On the site: **Workspace → Settings → Online payments = Test mode**, paste the **Key Id** (public part only). Save.
+6. Test: as a student book a paid service and pay with Razorpay's test UPI/card. The booking turns **confirmed**, both people get emails, and **Workspace → Finance** shows the order and ledger entries.
+7. **Live mode only after** Razorpay KYC is approved and a lawyer has reviewed the Terms, Privacy and Refund pages (`/legal/…`, drafts in `Legal.jsx`) and the business/GST set-up. Then generate live keys, update the three secrets and the Key Id, and switch Settings to Live.
+
+Payouts to mentors are **manual** (bank/UPI transfer by the client, recorded with its UTR): one person prepares, another approves, payouts above ₹25,000 (changeable) need the main admin. Automatic split payments (Razorpay Route) stay off until Razorpay and a legal review approve the marketplace model.
+
+### 9. Staff and two-step sign-in (10 min)
+1. Main admin: **Workspace → Settings → Two-step sign-in → Set up** (scan the QR code in Google Authenticator or similar). Needed for Finance, Commission, Payouts, Audit and Staff tools.
+2. **Workspace → Staff → Invite**: email + roles. The person creates an account with that email at `/signup`, confirms it, then signs in at `/staff/login`.
+3. Supabase → **Authentication → Multi-Factor** — make sure TOTP is enabled (it is by default).
+
+### 10. Keep the free database awake
 Supabase pauses free projects after a week with no activity. The workflow `.github/workflows/keepalive.yml` pings it every two days. In GitHub: **Settings → Secrets and variables → Actions → New repository secret**, add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (same values as in Cloudflare). Then **Actions → Keep Supabase awake → Run workflow** once to check it turns green. GitHub turns scheduled workflows off after 60 days without any commit; it emails you first, and one click re-enables it.
 
 ---
@@ -113,7 +147,8 @@ Supabase pauses free projects after a week with no activity. The workflow `.gith
 - **Brevo:** 300 emails a day in total. Plenty for bookings and alerts; a newsletter to a big list may need the paid plan (from about $9/month).
 - **Supabase:** 500 MB database, 1 GB image storage, 50,000 monthly users; paused after a week of no activity (handled by step 8).
 - **Cloudflare Pages:** free for business use; unlimited visitors.
-- **Payments:** prices are shown on services, but online payment is not built in. For paid sessions, the mentor shares payment details after approving.
+- **Supabase Edge Functions:** 500,000 calls a month free — far more than payments need.
+- **Razorpay:** no monthly fee; about 2% (+18% GST on the fee) per payment. Commission rules decide whether the platform, mentor or student carries it.
 
 ## Things to edit later
 - Social links and contact email: `config.js`.
@@ -122,10 +157,26 @@ Supabase pauses free projects after a week with no activity. The workflow `.gith
 - Everything else (mentors, services, sessions, stories, videos) is edited on the live site.
 
 ## Updating the database after a code update
-If a new version changes `schema.sql`, run the whole file again in the SQL Editor. It keeps all data.
+If a new version changes `schema.sql`, run the whole file again in the SQL Editor. It keeps all data (it never drops tables or columns). This version adds Part B (sections 13–30): staff and permissions, audit log, notifications, availability, payments and finance, portfolio reviews, support, campaigns, opportunities and resources.
+
+## Money rules (how commission works)
+All amounts are whole **paise**; percentages are **basis points** (1% = 100). For a listed price *P* and the matching rule:
+- fee = round(P × bps / 10000) + fixed, at least the minimum, at most the maximum (and never above *P* when the fee is inside the price)
+- gateway estimate = round((P + fee if added on top) × gateway bps / 10000 × (1 + GST bps / 10000))
+- student pays = P (+ fee if added on top) (+ gateway if the student bears it)
+- mentor receives = P (− fee if inside the price) (− gateway if the mentor bears it)
+
+The most specific active rule wins (mentor → service type → general → Settings default). Every order keeps a snapshot of its rule, so changing a rule never changes past orders. The browser never sends a price: the database computes it (`public.create_order`) and the payment is only accepted if Razorpay reports exactly that amount in INR. Every payment event is processed once (idempotent), the ledger is append-only, and refunds reverse the mentor's share automatically.
+
+## Checks
+`npm run lint` · `npm test` (commission maths, slots, permissions, schema safety) · `npm run build`. GitHub runs all three on every push (`.github/workflows/ci.yml`).
 
 ## Files
-All website files sit at the top level (no folders, so the GitHub website upload works). The only folder is `.github/workflows/` for the keep-awake job.
+All website files sit at the top level (no folders, so the GitHub website upload works). The only folder is `.github/workflows/` (`keepalive.yml`, `ci.yml`). Delete `Ask.jsx` and `.github/workflows/deploy.yml` from the repository if they are still there — they are no longer used.
 - `main.jsx` routes · `Layout.jsx` header and footer · `api.js` all data (Supabase or demo) · `auth.jsx` login state
 - Pages: `Home`, `Mentors`, `MentorProfile`, `Book`, `Sessions`, `Community`, `Journal`, `Post`, `Editor`, `Videos`, `Write`, `AccountPages`, `Dashboard`, `Unsubscribe`, `NotFound`
+- New: `Book` (slots + pay), `Portfolio`, `Explore` (opportunities, resources), `Support`, `Legal`, `Staff` + `StaffFinance` (workspace), `MentorTools` (availability, earnings), `Checkout`, `Notifications`, `InstallApp`, `ArchArt` (original line drawings), `Ui`
+- `platform.js` data for the new modules · `money.js`, `slots.js`, `permissions.js` shared rules (+ `*.test.js`)
+- `edge-*.ts` the four Supabase Edge Functions for Razorpay
+- PWA: `manifest.webmanifest`, `sw.js`, `offline.html`, `icon-*.png`, `apple-touch-icon.png` · `_headers` security headers for Cloudflare
 - `schema.sql` database, security rules and all emails · `seed.sql` optional starter content

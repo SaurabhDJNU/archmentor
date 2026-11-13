@@ -13,7 +13,7 @@ const mentor = (id, email, full_name, title, organisation, expertise, bio, extra
 });
 
 const service = (id, mentor_id, category, title, description, duration_min, price_inr = 0, sort = 0) => ({
-  id, mentor_id, category, title, description, duration_min, price_inr, active: true, sort, created_at: iso(-20),
+  id, mentor_id, category, title, description, duration_min, price_inr, price_paise: price_inr * 100, service_type: 'consultation', requires_approval: price_inr === 0, active: true, sort, created_at: iso(-20),
 });
 
 export const seed = {
@@ -30,6 +30,8 @@ export const seed = {
       'I am an architect, academic and researcher with 20+ years of professional experience across real estate, construction, architectural practice and design.'),
     mentor('m-sanjay', 'sanjay@demo.archmentor', 'Sanjay Mehra', 'Professor, Dean', 'Vastu Kala Academy', 'Thesis / Dissertation',
       'Experienced professor with a long history of working in higher education. Skilled in urban planning, feasibility studies and design.'),
+    { ...blankProfile, id: 'u-staff', email: 'staff@demo.archmentor', full_name: 'Demo Staff', role: 'staff', created_at: iso(-12) },
+    { ...blankProfile, id: 'u-finance', email: 'finance@demo.archmentor', full_name: 'Demo Finance', role: 'staff', created_at: iso(-12) },
     { ...blankProfile, id: 'm-pending', email: 'newmentor@demo.archmentor', full_name: 'New Mentor (pending)', role: 'mentor', title: 'Architect', expertise: 'Housing', bio: 'Waiting for admin approval.', created_at: iso(-1) },
   ],
   passwords: {
@@ -37,6 +39,8 @@ export const seed = {
     'student@demo.archmentor': 'demo1234',
     'mentor@demo.archmentor': 'demo1234',
     'professional@demo.archmentor': 'demo1234',
+    'staff@demo.archmentor': 'demo1234',
+    'finance@demo.archmentor': 'demo1234',
   },
   services: [
     service('sv-1', 'm-satish', 'Career', 'Free Architecture Intro Call', 'A free introductory session to discuss your architecture goals, portfolio, career aspirations, and determine the best mentorship path.', 20, 0, 0),
@@ -44,6 +48,7 @@ export const seed = {
     service('sv-3', 'm-satish', 'Sustainability', 'Passive & Energy Efficient Design', 'Learn passive cooling, daylighting, natural ventilation, orientation, shading, and energy-efficient building design.', 30, 0, 2),
     service('sv-4', 'm-satish', 'Housing', 'Affordable & Incremental Housing', 'Explore affordable housing, incremental housing, modular systems, and practical residential design solutions.', 30, 0, 3),
     service('sv-5', 'm-satish', 'Academic', 'Thesis & Research Guidance', 'Guidance for thesis topic selection, research methodology, case studies, literature review, and presentation.', 30, 0, 4),
+    service('sv-9', 'm-satish', 'Portfolio', 'Portfolio Deep-Dive (paid)', 'A focused one-hour review of your portfolio with a written action list afterwards. Pick a slot and pay to confirm.', 60, 999, 5),
     service('sv-6', 'm-aruna', 'Academic', 'Free Intro Call', 'A short first conversation about your thesis or research and how I can help.', 20),
     service('sv-7', 'm-kuldeep', 'Career', 'Free Intro Call', 'A short first conversation about your goals in practice, real estate or academia.', 20),
     service('sv-8', 'm-sanjay', 'Academic', 'Free Intro Call', 'A short first conversation about your thesis, studio work or higher studies.', 20),
@@ -84,7 +89,51 @@ export const seed = {
   forum_votes: [{ answer_id: 'a-1', user_id: 'x1' }, { answer_id: 'a-1', user_id: 'x2' }],
   submissions: [],
   subscribers: [],
-  settings: { site_name: 'ArchMentor', site_url: '', admin_email: '', sender_email: '', sender_name: 'ArchMentor', reply_to: '', emails_on: true },
+  settings: {
+    site_name: 'ArchMentor', site_url: '', admin_email: '', sender_email: '', sender_name: 'ArchMentor', reply_to: '', emails_on: true,
+    payments_mode: 'test', razorpay_key_id: 'rzp_test_demo', default_commission_bps: 2000, gateway_fee_bps: 200, gst_bps: 1800,
+    payout_hold_days: 7, payout_two_person_paise: 2500000, cancel_hours: 24, slot_hold_minutes: 30, support_email: '', business_name: '', business_address: '', daily_email_cap: 280,
+  },
+  // ---- platform (staff, payments, portfolio, content) ----
+  staff_members: [
+    { user_id: 'u-staff', email: 'staff@demo.archmentor', full_name: 'Demo Staff', status: 'active', created_at: iso(-12) },
+    { user_id: 'u-finance', email: 'finance@demo.archmentor', full_name: 'Demo Finance', status: 'active', created_at: iso(-12) },
+  ],
+  staff_role_assignments: [
+    { user_id: 'u-staff', role_key: 'support' }, { user_id: 'u-staff', role_key: 'booking_coordinator' }, { user_id: 'u-staff', role_key: 'portfolio_coordinator' },
+    { user_id: 'u-staff', role_key: 'content_manager' }, { user_id: 'u-staff', role_key: 'email_operator' }, { user_id: 'u-staff', role_key: 'analyst' },
+    { user_id: 'u-finance', role_key: 'finance_operator' },
+  ],
+  staff_permission_overrides: [],
+  staff_invites: [],
+  mfa_factors: [{ id: 'f-fin', user_id: 'u-finance', status: 'verified', created_at: iso(-12) }],
+  audit_logs: [],
+  notifications: [],
+  mentor_availability: [1, 2, 3, 4, 5].map((d) => ({ id: `av-${d}`, mentor_id: 'm-satish', weekday: d, start_time: '18:00', end_time: '21:00', slot_minutes: 60 }))
+    .concat([{ id: 'av-6', mentor_id: 'm-satish', weekday: 6, start_time: '10:00', end_time: '13:00', slot_minutes: 30 }]),
+  mentor_time_off: [],
+  commission_rules: [
+    { id: 'cr-1', name: 'Standard', service_type: null, mentor_id: null, percentage_bps: 2000, fixed_fee_paise: 0, min_fee_paise: 0, max_fee_paise: null, gateway_fee_bearer: 'platform', fee_included: true, effective_from: iso(-60), effective_to: null, reason: 'Launch pricing', created_at: iso(-60) },
+    { id: 'cr-2', name: 'Portfolio reviews', service_type: 'portfolio_review', mentor_id: null, percentage_bps: 3000, fixed_fee_paise: 0, min_fee_paise: 0, max_fee_paise: null, gateway_fee_bearer: 'platform', fee_included: true, effective_from: iso(-60), effective_to: null, reason: 'Coordination work', created_at: iso(-60) },
+  ],
+  orders: [], financial_ledger: [], refund_requests: [], mentor_finance: [], mentor_payouts: [], ledger_adjustments: [],
+  portfolio_review_types: [
+    { id: 'rt-1', title: 'Portfolio review — written', description: 'A practising architect reads your portfolio and sends written feedback with a scored rubric and one follow-up round.', price_paise: 0, turnaround_days: 7, active: true, sort: 1, created_at: iso(-30) },
+    { id: 'rt-2', title: 'Portfolio review + call', description: 'Written feedback plus a 30-minute call to walk through the changes.', price_paise: 149900, turnaround_days: 10, active: true, sort: 2, created_at: iso(-30) },
+  ],
+  portfolio_projects: [], portfolio_files: [], portfolio_reviews: [],
+  opportunities: [
+    { id: 'op-1', title: 'Architectural intern (6 months)', organisation: 'Studio practice, Delhi NCR', kind: 'Internship', location: 'Gurugram', remote: false, url: '', description: 'Residential and hospitality projects. Portfolio with hand sketches preferred.', deadline: iso(20).slice(0, 10), published: true, created_at: iso(-2) },
+    { id: 'op-2', title: 'Student housing ideas competition', organisation: 'Open call', kind: 'Competition', location: 'Online', remote: true, url: '', description: 'Two-sheet entries on affordable student housing in Indian cities.', deadline: iso(45).slice(0, 10), published: true, created_at: iso(-4) },
+    { id: 'op-3', title: 'Junior architect', organisation: 'Design-build office, Pune', kind: 'Job', location: 'Pune', remote: false, url: '', description: '0–2 years. Revit and site coordination.', deadline: null, published: true, created_at: iso(-6) },
+  ],
+  resources: [
+    { id: 'rs-1', title: 'Internship portfolio checklist', kind: 'Checklist', description: 'Twelve checks before you send your portfolio to an office.', url: '', cover_url: '', published: true, sort: 1, created_at: iso(-9) },
+    { id: 'rs-2', title: 'Thesis topic shortlist template', kind: 'Template', description: 'Compare topics on site access, data, guide fit and personal interest.', url: '', cover_url: '', published: true, sort: 2, created_at: iso(-9) },
+    { id: 'rs-3', title: 'Reading list: first year in practice', kind: 'Reading list', description: 'Books and essays mentors recommend for the first year after graduation.', url: '', cover_url: '', published: true, sort: 3, created_at: iso(-9) },
+  ],
+  saved_items: [],
+  call_requests: [], call_notes: [], support_tickets: [], ticket_messages: [], email_campaigns: [], forum_reports: [],
   email_log: [],
 };
 

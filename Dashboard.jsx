@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, Navigate, useSearchParams } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import * as api from './api.js';
 import { useAuth } from './auth.jsx';
 import { ROLE_LABEL, download, fmtDate, fmtPrice, fmtSessionTime, slugify, timeAgo, toCsv, useLoad, useTitle, youtubeId } from './util.js';
@@ -7,21 +7,14 @@ import { EXPERTISE, SERVICE_CATEGORIES, WORKS_WITH } from './seed.js';
 import { ErrorMsg, Loading } from './Bits.jsx';
 import ImageInput from './ImageInput.jsx';
 
-const Status = ({ s, label }) => <span className={`status ${s}`}>{label || s}</span>;
-
-function Tabs({ tabs, active, setActive }) {
-  return (
-    <div className="tabs" role="tablist">
-      {tabs.map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={active === id} onClick={() => setActive(id)}>{label}</button>)}
-    </div>
-  );
-}
-
-// Tab kept in the address (?tab=…) so links from emails and reloads land in the right place
-function useTab(first) {
-  const [params, setParams] = useSearchParams();
-  return [params.get('tab') || first, (t) => setParams(t === first ? {} : { tab: t }, { replace: true })];
-}
+import { Status, Tabs, useTab } from './Ui.jsx';
+import { PayButton } from './Checkout.jsx';
+import { SlotPicker, AvailabilityEditor, Earnings, PayoutDetails } from './MentorTools.jsx';
+import { MyPortfolios } from './Portfolio.jsx';
+import { MyPayments } from './Checkout.jsx';
+import { rupees } from './money.js';
+import * as platform from './platform.js';
+import { fmtSlot, fmtDay } from './slots.js';
 
 // ------------------------------------------------------------ profile editor
 function ProfileForm({ profile }) {
@@ -104,10 +97,24 @@ function RequestRow({ r, as, onChange }) {
         <p style={{ fontSize: 20 }}>{what} · <span className="muted">{as === 'mentor' ? 'from' : 'with'} {who}</span></p>
         <Status s={r.status} />
       </div>
-      <p className="small muted mt-8">{[r.duration_min && `${r.duration_min} min`, fmtPrice(r.price_inr), r.stage, r.preferred_time && `Prefers: ${r.preferred_time}`, `Sent ${fmtDate(r.created_at)}`].filter(Boolean).join(' · ')}</p>
+      <p className="small muted mt-8">{[r.start_at && `${fmtDay(r.start_at)}, ${fmtSlot(r.start_at)} IST`, r.duration_min && `${r.duration_min} min`, r.price_paise ? rupees(r.price_paise) : fmtPrice(r.price_inr), r.stage, r.preferred_time && `Prefers: ${r.preferred_time}`, `Sent ${fmtDate(r.created_at)}`].filter(Boolean).join(' · ')}</p>
       {as === 'mentor' && r.student_email && <p className="small mt-8">Student email: <a className="ul" href={`mailto:${r.student_email}`}>{r.student_email}</a></p>}
       <p className="mt-16" style={{ whiteSpace: 'pre-line', color: 'var(--ink-2)', maxWidth: '70ch' }}>{r.message}</p>
 
+      {as === 'student' && r.status === 'awaiting_payment' && (
+        <div className="panel mt-16 stack gap-8" style={{ padding: 20 }}>
+          <p><b style={{ fontWeight: 500 }}>{r.start_at ? 'Your slot is held.' : 'Approved.'}</b> Pay securely to confirm. If the slot hold runs out, the time is released.</p>
+          <PayButton kind="booking" refId={r.id} label="Pay and confirm" onPaid={onChange} />
+        </div>
+      )}
+      {as === 'student' && r.status === 'confirmed' && (
+        <div className="panel mt-16 stack gap-8" style={{ padding: 20 }}>
+          <p><b style={{ fontWeight: 500 }}>Paid and confirmed.</b> {r.meeting_link ? '' : 'The mentor will add the meeting link here and by email.'}</p>
+          {r.meeting_link && <p>Meeting link: <a className="ul" href={r.meeting_link} target="_blank" rel="noopener noreferrer">{r.meeting_link}</a></p>}
+          {r.calendly_url && !r.start_at && <a className="btn" style={{ alignSelf: 'flex-start' }} href={r.calendly_url} target="_blank" rel="noopener noreferrer">Schedule on Calendly ↗</a>}
+        </div>
+      )}
+      {r.start_at && ['pending', 'approved', 'awaiting_payment', 'confirmed'].includes(r.status) && <Reschedule r={r} onDone={onChange} />}
       {as === 'student' && r.status === 'approved' && (
         <div className="panel mt-16 stack gap-8" style={{ padding: 20 }}>
           <p><b style={{ fontWeight: 500 }}>Approved.</b> {r.calendly_url ? 'Pick a time that suits you on the mentor’s calendar.' : 'The mentor will confirm the time with you.'}</p>
@@ -117,22 +124,38 @@ function RequestRow({ r, as, onChange }) {
         </div>
       )}
       {as === 'student' && r.status === 'declined' && r.mentor_note && <p className="panel mt-16" style={{ padding: 16, whiteSpace: 'pre-line' }}>{r.mentor_note}</p>}
-      {as === 'student' && ['pending', 'approved'].includes(r.status) && (
-        <div className="actions mt-16"><button type="button" className="ul" disabled={busy} onClick={() => act({ status: 'cancelled' }, 'Cancel this request? The mentor will be told by email.')}>Cancel request</button></div>
+      {as === 'student' && ['pending', 'approved', 'awaiting_payment', 'confirmed'].includes(r.status) && (
+        <div className="actions mt-16"><button type="button" className="ul" disabled={busy} onClick={() => act({ status: 'cancelled' }, r.status === 'confirmed' ? 'Cancel this paid booking? A refund request is opened automatically; the refund policy decides the amount.' : 'Cancel this request? The mentor will be told by email.')}>Cancel booking</button></div>
       )}
 
-      {as === 'mentor' && ['pending', 'approved'].includes(r.status) && (
+      {as === 'mentor' && ['pending', 'approved', 'confirmed'].includes(r.status) && (
         <div className="stack gap-16 mt-24" style={{ maxWidth: 640 }}>
           <div className="field"><label htmlFor={`ml-${r.id}`}>Meeting link (optional: Google Meet, Zoom…)</label><input id={`ml-${r.id}`} type="url" value={link} onChange={(e) => setLink(e.target.value)} /></div>
           <div className="field"><label htmlFor={`mn-${r.id}`}>Note to the student (sent by email)</label><textarea id={`mn-${r.id}`} rows={3} value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Please book a slot this week and bring your portfolio PDF." /></div>
           <div className="actions">
-            <button type="button" className="btn" disabled={busy} onClick={() => act({ status: 'approved', meeting_link: link, mentor_note: note })}>{r.status === 'approved' ? 'Update and email the student' : 'Approve and email the student'}</button>
+            <button type="button" className="btn" disabled={busy} onClick={() => act(r.status === 'pending' ? { status: 'approved', meeting_link: link, mentor_note: note } : { meeting_link: link, mentor_note: note })}>{r.status === 'pending' ? (r.price_paise > 0 ? 'Approve — student pays next' : 'Approve and email the student') : 'Update and email the student'}</button>
             {r.status === 'pending' && <button type="button" className="ul" disabled={busy} onClick={() => act({ status: 'declined', mentor_note: note }, 'Decline this request? The student will be told by email.')}>Decline</button>}
-            {r.status === 'approved' && <button type="button" className="ul" disabled={busy} onClick={() => act({ status: 'done' })}>Mark as done</button>}
+            {['approved', 'confirmed'].includes(r.status) && <button type="button" className="ul" disabled={busy} onClick={() => act({ status: 'done' }, 'Mark this session as done? For paid sessions this starts the payout clock.')}>Mark as done</button>}
           </div>
         </div>
       )}
       {err && <p className="err mt-8" role="alert">{err}</p>}
+    </div>
+  );
+}
+
+function Reschedule({ r, onDone }) {
+  const [open, setOpen] = useState(false);
+  const [err, setErr] = useState('');
+  if (!open) return <div className="actions mt-8"><button type="button" className="ul small" onClick={() => setOpen(true)}>Move to another time</button></div>;
+  return (
+    <div className="panel mt-16" style={{ padding: 20 }}>
+      <SlotPicker mentorId={r.mentor_id} durationMin={r.duration_min || 60} onPick={async (iso) => {
+        setErr('');
+        try { await platform.rescheduleBooking(r.id, iso); setOpen(false); onDone(); } catch (e) { setErr(e.message); }
+      }} />
+      {err && <p className="err mt-8" role="alert">{err}</p>}
+      <button type="button" className="ul mt-16" onClick={() => setOpen(false)}>Close</button>
     </div>
   );
 }
@@ -142,7 +165,7 @@ function MyRequests({ as, userId }) {
   const [filter, setFilter] = useState('open');
   if (loading) return <Loading />;
   const all = (data || []).filter((r) => (as === 'mentor' ? r.mentor_id : r.student_id) === userId);
-  const open = all.filter((r) => ['pending', 'approved'].includes(r.status));
+  const open = all.filter((r) => ['pending', 'approved', 'awaiting_payment', 'confirmed'].includes(r.status));
   const list = filter === 'open' ? open : all;
   return (
     <>
@@ -162,7 +185,20 @@ function MyRequests({ as, userId }) {
 }
 
 // ------------------------------------------------------------ mentor services
-const BLANK_SERVICE = { category: 'Career', title: '', description: '', duration_min: 30, price_inr: 0, active: true, sort: 0 };
+const BLANK_SERVICE = { category: 'Career', title: '', description: '', duration_min: 30, price_inr: 0, active: true, sort: 0, service_type: 'consultation', requires_approval: true };
+
+// What the mentor receives for a price, using the live commission rule (server-calculated)
+function NetPreview({ priceInr, type }) {
+  const [c, setC] = useState(null);
+  useEffect(() => {
+    const p = Math.round(Number(priceInr) || 0) * 100;
+    if (!p) { setC(null); return undefined; }
+    const t = setTimeout(() => platform.previewCommission(p, type).then(setC).catch(() => setC(null)), 300);
+    return () => clearTimeout(t);
+  }, [priceInr, type]);
+  if (!c) return null;
+  return <p className="small muted">Student pays {rupees(c.customer_total_paise)} · platform fee {rupees(c.platform_fee_paise)} · <b style={{ fontWeight: 500, color: 'var(--ink)' }}>you receive {rupees(c.mentor_net_paise)}</b> after the session is done.</p>;
+}
 
 function ServicesManager() {
   const { data, error, loading, reload } = useLoad(api.listMyServices);
@@ -195,6 +231,12 @@ function ServicesManager() {
             <div className="field"><label htmlFor="sv-price">Price in ₹ (0 = free)</label><input id="sv-price" type="number" min="0" step="50" value={editing.price_inr} onChange={set('price_inr')} /></div>
             <div className="field"><label htmlFor="sv-sort">Order (lower shows first)</label><input id="sv-sort" type="number" value={editing.sort} onChange={set('sort')} /></div>
           </div>
+          <NetPreview priceInr={editing.price_inr} type={editing.service_type || 'consultation'} />
+          <div className="form-row">
+            <div className="field"><label htmlFor="sv-type">Type</label><select id="sv-type" value={editing.service_type || 'consultation'} onChange={set('service_type')}>
+              <option value="consultation">One-to-one consultation</option><option value="portfolio_review">Portfolio review</option><option value="thesis">Thesis guidance</option><option value="career">Career guidance</option></select></div>
+          </div>
+          <label className="check"><input type="checkbox" checked={editing.requires_approval !== false} onChange={set('requires_approval')} /> I approve each request first (untick so students can pick a slot and pay straight away)</label>
           <label className="check"><input type="checkbox" checked={!!editing.active} onChange={set('active')} /> Students can book this service</label>
           {state.status === 'error' && <p className="err" role="alert">{state.msg}</p>}
           <div className="actions">
@@ -238,9 +280,11 @@ function MySessions() {
             <div style={{ flex: '1 1 320px' }}>
               <Link to={`/sessions/${s.slug || s.id}`} style={{ fontSize: 19 }}>{s.title}</Link>
               <p className="small muted">{fmtSessionTime(s.starts_at, s.ends_at)} · {s.platform || 'Online'}</p>
-              {upcoming && <p className="small mt-8">The joining link is in your confirmation email; we send a reminder the day before.</p>}
+              {r.status === 'awaiting_payment' && <div className="mt-8"><PayButton kind="event" refId={r.id} label="Pay to confirm your seat" onPaid={reload} /></div>}
+              {r.status === 'cancelled' && <p className="small faint mt-8">Cancelled</p>}
+              {upcoming && r.status !== 'awaiting_payment' && r.status !== 'cancelled' && <p className="small mt-8">The joining link is in your confirmation email; we send a reminder the day before.</p>}
             </div>
-            {upcoming ? <button type="button" className="ul" onClick={async () => { if (window.confirm('Give up your seat?')) { await api.cancelRegistration(r.id); reload(); } }}>Cancel seat</button> : <Status s="done" label="attended" />}
+            {r.status === 'cancelled' ? null : upcoming ? <button type="button" className="ul" onClick={async () => { if (window.confirm('Give up your seat?')) { await api.cancelRegistration(r.id); reload(); } }}>Cancel seat</button> : <Status s="done" label="attended" />}
           </div>
         );
       })}
@@ -305,8 +349,9 @@ function Stories({ admin }) {
 const toLocalInput = (iso) => (iso ? new Date(new Date(iso).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '');
 
 // Generic list + editor for one table.
-function Collection({ table, title, columns, fields, blank, prepare, csv, extra, editOnly }) {
-  const { data, error, loading, reload } = useLoad(() => api.adminList(table), [table]);
+function Collection({ table, title, columns, fields, blank, prepare, csv, extra, editOnly, source, noDelete }) {
+  const src = source || { list: () => api.adminList(table), save: (row) => api.adminSave(table, row), del: (id) => api.adminDelete(table, id) };
+  const { data, error, loading, reload } = useLoad(() => src.list(), [table]);
   const [editing, setEditing] = useState(null);
   const [state, setState] = useState({ status: 'idle', msg: '' });
 
@@ -315,13 +360,13 @@ function Collection({ table, title, columns, fields, blank, prepare, csv, extra,
     setState({ status: 'busy', msg: '' });
     try {
       const row = prepare ? prepare(editing) : editing;
-      await api.adminSave(table, row);
+      await src.save(row);
       setEditing(null); setState({ status: 'idle', msg: '' }); reload();
     } catch (err) { setState({ status: 'error', msg: err.message }); }
   };
   const remove = async (row) => {
     if (!window.confirm('Delete this permanently? This cannot be undone.')) return;
-    try { await api.adminDelete(table, row.id); reload(); } catch (err) { setState({ status: 'error', msg: err.message }); }
+    try { await src.del(row.id); reload(); } catch (err) { setState({ status: 'error', msg: err.message }); }
   };
 
   return (
@@ -329,7 +374,7 @@ function Collection({ table, title, columns, fields, blank, prepare, csv, extra,
       <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 16, marginBottom: 16 }}>
         <h2 className="h-m">{title} {data && <span className="faint small">({data.length})</span>}</h2>
         <div className="actions">
-          {csv && data?.length > 0 && <button type="button" className="ul" onClick={() => download(`${table}.csv`, toCsv(data))}>Download CSV</button>}
+          {csv && data?.length > 0 && <button type="button" className="ul" onClick={() => { download(`${table}.csv`, toCsv(data)); platform.logEvent('export', { table, rows: data.length }); }}>Download CSV</button>}
           {fields && !editing && !editOnly && <button type="button" className="btn" onClick={() => setEditing({ ...blank })}>Add new</button>}
         </div>
       </div>
@@ -372,7 +417,7 @@ function Collection({ table, title, columns, fields, blank, prepare, csv, extra,
                     <div className="actions" style={{ justifyContent: 'flex-end', flexWrap: 'nowrap' }}>
                       {extra && extra(row, reload)}
                       {fields && <button type="button" className="ul" onClick={() => setEditing({ ...row })}>Edit</button>}
-                      <button type="button" className="ul" style={{ color: 'var(--bad)', borderColor: 'var(--bad)' }} onClick={() => remove(row)}>Delete</button>
+                      {!noDelete && <button type="button" className="ul" style={{ color: 'var(--bad)', borderColor: 'var(--bad)' }} onClick={() => remove(row)}>Delete</button>}
                     </div>
                   </td>
                 </tr>
@@ -395,8 +440,10 @@ function StudentDash({ profile }) {
   const [tab, setTab] = useTab('requests');
   return (
     <>
-      <Tabs tabs={[['requests', 'My bookings'], ['sessions', 'My live sessions'], ['questions', 'My questions'], ['profile', 'Profile']]} active={tab} setActive={setTab} />
+      <Tabs tabs={[['requests', 'My bookings'], ['portfolio', 'Portfolio reviews'], ['sessions', 'My live sessions'], ['payments', 'Payments'], ['questions', 'My questions'], ['profile', 'Profile']]} active={tab} setActive={setTab} />
       {tab === 'requests' && <MyRequests as="student" userId={profile.id} />}
+      {tab === 'portfolio' && <MyPortfolios />}
+      {tab === 'payments' && <MyPayments />}
       {tab === 'sessions' && <MySessions />}
       {tab === 'questions' && <MyQuestions />}
       {tab === 'profile' && <ProfileForm profile={profile} />}
@@ -447,8 +494,11 @@ function MentorDash({ profile }) {
   return (
     <>
       <MentorChecklist profile={profile} />
-      <Tabs tabs={[['requests', 'Requests'], ['services', 'My services'], ['profile', 'My profile'], ['stories', 'My stories'], ['sessions', 'Live sessions'], ['questions', 'My questions']]} active={tab} setActive={setTab} />
+      <Tabs tabs={[['requests', 'Requests'], ['availability', 'Availability'], ['services', 'My services'], ['portfolio', 'Portfolio reviews'], ['earnings', 'Earnings'], ['profile', 'My profile'], ['stories', 'My stories'], ['sessions', 'Live sessions'], ['questions', 'My questions']]} active={tab} setActive={setTab} />
       {tab === 'requests' && <MyRequests as="mentor" userId={profile.id} />}
+      {tab === 'availability' && <AvailabilityEditor />}
+      {tab === 'portfolio' && <MyPortfolios mentor />}
+      {tab === 'earnings' && <><Earnings /><PayoutDetails /></>}
       {tab === 'services' && <ServicesManager />}
       {tab === 'profile' && <ProfileForm profile={profile} />}
       {tab === 'stories' && (profile.approved ? <Stories /> : <p className="empty">You can write for the Journal once your profile is approved.</p>)}
@@ -562,6 +612,39 @@ function SettingsPanel() {
         <input id="st-key" type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} placeholder={status.data?.has_key ? '••••••••••••' : 'xkeysib-…'} />
       </div>
       <label className="check"><input type="checkbox" checked={!!f.emails_on} onChange={set('emails_on')} /> Send emails (untick to pause all website emails)</label>
+      <div className="form-row">
+        <div className="field"><label htmlFor="st-sup">Support email shown on the site</label><input id="st-sup" type="email" value={f.support_email || ''} onChange={set('support_email')} /></div>
+        <div className="field"><label htmlFor="st-cap">Daily email limit (Brevo free: 300)</label><input id="st-cap" type="number" min="0" value={f.daily_email_cap ?? 280} onChange={set('daily_email_cap')} /></div>
+      </div>
+
+      <h2 className="h-m mt-24">Payments and policies</h2>
+      <div className="form-row">
+        <div className="field"><label htmlFor="st-pm">Online payments</label>
+          <select id="st-pm" value={f.payments_mode || 'off'} onChange={set('payments_mode')}>
+            <option value="off">Off — paid services are arranged by the mentor</option>
+            <option value="test">Test mode (Razorpay test keys, no real money)</option>
+            <option value="live">Live (only after Razorpay KYC and legal review)</option>
+          </select></div>
+        <div className="field"><label htmlFor="st-rk">Razorpay key id (public part only)</label><input id="st-rk" value={f.razorpay_key_id || ''} onChange={set('razorpay_key_id')} placeholder="rzp_test_…" /></div>
+      </div>
+      <div className="form-row">
+        <div className="field"><label htmlFor="st-cb">Default commission (basis points, 2000 = 20%)</label><input id="st-cb" type="number" min="0" max="10000" value={f.default_commission_bps ?? 2000} onChange={set('default_commission_bps')} /></div>
+        <div className="field"><label htmlFor="st-gw">Gateway fee estimate (bps) / GST on it (bps)</label>
+          <div style={{ display: 'flex', gap: 8 }}><input id="st-gw" type="number" min="0" value={f.gateway_fee_bps ?? 200} onChange={set('gateway_fee_bps')} /><input aria-label="GST on gateway fee (bps)" type="number" min="0" value={f.gst_bps ?? 1800} onChange={set('gst_bps')} /></div></div>
+      </div>
+      <div className="form-row">
+        <div className="field"><label htmlFor="st-hold">Payout hold after completion (days)</label><input id="st-hold" type="number" min="0" value={f.payout_hold_days ?? 7} onChange={set('payout_hold_days')} /></div>
+        <div className="field"><label htmlFor="st-two">Payouts above this need the main admin (paise)</label><input id="st-two" type="number" min="0" value={f.payout_two_person_paise ?? 2500000} onChange={set('payout_two_person_paise')} /></div>
+      </div>
+      <div className="form-row">
+        <div className="field"><label htmlFor="st-ch">Free cancellation / rescheduling until (hours before)</label><input id="st-ch" type="number" min="0" value={f.cancel_hours ?? 24} onChange={set('cancel_hours')} /></div>
+        <div className="field"><label htmlFor="st-sh">Unpaid slot hold (minutes)</label><input id="st-sh" type="number" min="5" value={f.slot_hold_minutes ?? 30} onChange={set('slot_hold_minutes')} /></div>
+      </div>
+      <div className="form-row">
+        <div className="field"><label htmlFor="st-bn">Legal business name (for legal pages)</label><input id="st-bn" value={f.business_name || ''} onChange={set('business_name')} /></div>
+        <div className="field"><label htmlFor="st-ba">Business address</label><input id="st-ba" value={f.business_address || ''} onChange={set('business_address')} /></div>
+      </div>
+      <p className="small muted">The Razorpay secret key and webhook secret are never stored here — they live only in Supabase → Edge Functions → Secrets.</p>
       <div className="actions">
         <button type="submit" className="btn">Save settings</button>
         {msg && <span className="small" role="status">{msg}</span>}
@@ -571,15 +654,12 @@ function SettingsPanel() {
   );
 }
 
-function AdminDash() {
-  const [tab, setTab] = useTab('people');
-  const tabs = [['people', 'People'], ['services', 'Services'], ['requests', 'Bookings'], ['sessions', 'Live sessions'], ['posts', 'Journal'], ['community', 'Community'], ['videos', 'Videos'], ['submissions', 'Story ideas'], ['subscribers', 'Subscribers'], ['emails', 'Emails'], ['settings', 'Settings']];
+// Admin collections, also used by the staff workspace (/staff)
+export function AdminPanel({ tab }) {
   const people = useLoad(() => (tab === 'services' ? api.adminList('profiles') : []), [tab]);
   const names = Object.fromEntries((people.data || []).map((p) => [p.id, p.full_name]));
   return (
     <>
-      <Tabs tabs={tabs} active={tab} setActive={setTab} />
-
       {tab === 'people' && (
         <Collection
           table="profiles" title="People" csv
@@ -757,6 +837,8 @@ function AdminDash() {
   );
 }
 
+export { Collection, SettingsPanel, EmailsPanel, Registrations };
+
 export default function Dashboard() {
   useTitle('Dashboard');
   const { user, profile, loading, refresh } = useAuth();
@@ -770,7 +852,8 @@ export default function Dashboard() {
     <div className="wrap page-top">
       <p className="label" style={{ marginBottom: 16 }}>{heading}</p>
       <h1 className="h-l" style={{ marginBottom: 48 }}>Hello, {profile.full_name?.replace(/^Dr\.?\s+/, '').split(' ')[0] || 'there'}.</h1>
-      {profile.role === 'admin' && <AdminDash />}
+      {profile.role === 'admin' && <Navigate to="/staff" replace />}
+      {profile.role === 'staff' && <Navigate to="/staff" replace />}
       {profile.role === 'mentor' && <MentorDash profile={profile} />}
       {profile.role === 'student' && <StudentDash profile={profile} />}
       {profile.role === 'professional' && <ProfessionalDash profile={profile} />}

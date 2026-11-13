@@ -7,9 +7,13 @@ import { seed } from './seed.js';
 
 const URL_ = import.meta.env.VITE_SUPABASE_URL;
 const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
-export const DEMO = !(URL_ && KEY);
+// Demo mode only when explicitly allowed (local development or VITE_DEMO_MODE=true).
+// A production build without Supabase settings fails closed and shows a "not configured" page.
+export const CONFIGURED = !!(URL_ && KEY);
+export const DEMO = !CONFIGURED && (import.meta.env.DEV || import.meta.env.VITE_DEMO_MODE === 'true' || import.meta.env.MODE === 'test');
+export const MISCONFIGURED = !CONFIGURED && !DEMO;
 
-const sb = DEMO ? null : createClient(URL_, KEY);
+const sb = CONFIGURED ? createClient(URL_, KEY) : null;
 
 // ---------------------------------------------------------------- helpers
 const fail = (e) => { throw new Error(e?.message || String(e)); };
@@ -18,19 +22,19 @@ const uid = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) 
 const nowIso = () => new Date().toISOString();
 const byNewest = (a, b) => (b.published_at || b.created_at || '').localeCompare(a.published_at || a.created_at || '');
 const pick = (o, keys) => Object.fromEntries(Object.entries(o).filter(([k]) => keys.includes(k)));
-const SESSION_COLS = 'id,slug,title,subtitle,description,kind,starts_at,ends_at,platform,format,capacity,host_name,featured,published,created_at';
+const SESSION_COLS = 'id,slug,title,subtitle,description,kind,starts_at,ends_at,platform,format,capacity,host_name,featured,published,created_at,price_paise,service_type,host_mentor_id';
 
 const TABLES = ['profiles', 'services', 'requests', 'sessions', 'registrations', 'posts', 'videos', 'forum_questions', 'forum_answers', 'submissions', 'subscribers'];
 
 // ---------------------------------------------------------------- demo store
-const KEY_DB = 'archmentor_demo_db_v2';
-const KEY_SESSION = 'archmentor_demo_session_v2';
+const KEY_DB = 'archmentor_demo_db_v3';
+const KEY_SESSION = 'archmentor_demo_session_v3';
 const listeners = new Set();
 
 function loadDb() {
   try {
     const raw = localStorage.getItem(KEY_DB);
-    if (raw) return JSON.parse(raw);
+    if (raw) return { ...JSON.parse(JSON.stringify(seed)), ...JSON.parse(raw) };
   } catch { /* storage unavailable */ }
   return JSON.parse(JSON.stringify(seed));
 }
@@ -51,6 +55,26 @@ function demoMail(to, subject, kind) {
   db.email_log.unshift({ id: Date.now() + Math.random(), created_at: nowIso(), to_email: to, subject, kind, status: 'demo', note: 'Demo mode: not actually sent', http_status: null });
 }
 const adminEmail = () => db.settings?.admin_email || 'admin (set in Settings)';
+
+// ---- shared with platform.js (new modules) ----
+function demoNotify(user_id, title, body = '', link = '') {
+  if (!user_id) return;
+  db.notifications = db.notifications || [];
+  db.notifications.unshift({ id: Date.now() + Math.random(), user_id, title, body, link, read_at: null, created_at: nowIso() });
+}
+function demoStaff(id = demoUserId()) { return (db.staff_members || []).find((s) => s.user_id === id && s.status === 'active'); }
+function demoHasPerm(p) {
+  const u = me(); if (!u) return false;
+  if (u.role === 'admin') return true;
+  const st = demoStaff(u.id); if (!st) return false;
+  return !!demo.perms?.(u.id)?.has(p);
+}
+export const demo = {
+  get db() { return db; }, save, me, uid, nowIso, demoMail, demoNotify, delay, fail, isAdmin,
+  isStaff: () => !!demoStaff(), hasPerm: demoHasPerm, perms: null, userId: demoUserId,
+};
+export const client = () => sb;
+export { ok as unwrap };
 
 export function resetDemo() {
   db = JSON.parse(JSON.stringify(seed));
@@ -140,7 +164,9 @@ export async function getMyProfile() {
   return ok(await sb.from('profiles').select('*').eq('id', user.id).maybeSingle());
 }
 
-const PROFILE_FIELDS = ['full_name', 'title', 'organisation', 'bio', 'photo_url', 'linkedin_url', 'portfolio_url', 'calendly_url', 'expertise', 'experience', 'works_with', 'stage'];
+const PROFILE_FIELDS = ['full_name', 'title', 'organisation', 'bio', 'photo_url', 'linkedin_url', 'portfolio_url', 'calendly_url', 'expertise', 'experience', 'works_with', 'stage', 'location', 'languages', 'discipline', 'phone', 'email_opt_out'];
+const PUBLIC_MENTOR = ['id', 'full_name', 'title', 'organisation', 'bio', 'photo_url', 'linkedin_url', 'portfolio_url', 'expertise', 'experience', 'works_with', 'location', 'languages', 'discipline', 'created_at', 'role', 'approved'];
+const publicMentor = (m) => ({ ...pick(m, PUBLIC_MENTOR), role: 'mentor', approved: true });
 
 export async function updateMyProfile(patch) {
   const clean = pick(patch, PROFILE_FIELDS);
@@ -154,9 +180,10 @@ const withServices = (mentors, services) => mentors.map((m) => {
   return { ...m, services: own, min_price: own.length ? Math.min(...own.map((s) => s.price_inr)) : null };
 });
 
+// The public directory reads only safe columns (no email, phone or Calendly link).
 export async function listMentors() {
-  if (DEMO) return delay(withServices(db.profiles.filter((p) => p.role === 'mentor' && p.approved), db.services));
-  const mentors = ok(await sb.from('profiles').select('*').eq('role', 'mentor').eq('approved', true).order('created_at'));
+  if (DEMO) return delay(withServices(db.profiles.filter((p) => p.role === 'mentor' && p.approved).map(publicMentor), db.services));
+  const mentors = (ok(await sb.from('public_mentors').select('*').order('created_at'))).map((m) => ({ ...m, role: 'mentor', approved: true }));
   const services = ok(await sb.from('services').select('*').eq('active', true));
   return withServices(mentors, services);
 }
@@ -164,9 +191,11 @@ export async function listMentors() {
 export async function getMentor(id) {
   if (DEMO) {
     const m = db.profiles.find((p) => p.id === id && p.role === 'mentor' && (p.approved || isAdmin() || p.id === demoUserId()));
-    return delay(m ? withServices([m], db.services)[0] : null);
+    return delay(m ? withServices([m.approved ? publicMentor(m) : m], db.services)[0] : null);
   }
-  const m = ok(await sb.from('profiles').select('*').eq('id', id).eq('role', 'mentor').maybeSingle());
+  let m = ok(await sb.from('public_mentors').select('*').eq('id', id).maybeSingle());
+  if (m) m = { ...m, role: 'mentor', approved: true };
+  else m = ok(await sb.from('profiles').select('*').eq('id', id).eq('role', 'mentor').maybeSingle());   // own or staff preview
   if (!m) return null;
   const services = ok(await sb.from('services').select('*').eq('mentor_id', id));
   return withServices([m], services)[0];
@@ -181,9 +210,11 @@ export async function listMyServices() {
 
 export async function saveService(row) {
   const user = await getUser(); if (!user) fail('Please log in.');
-  const clean = pick(row, ['category', 'title', 'description', 'duration_min', 'price_inr', 'active', 'sort']);
+  const clean = pick(row, ['category', 'title', 'description', 'duration_min', 'price_inr', 'active', 'sort', 'service_type', 'requires_approval']);
   clean.duration_min = Math.max(5, Number(clean.duration_min) || 30);
-  clean.price_inr = Math.max(0, Number(clean.price_inr) || 0);
+  clean.price_inr = Math.max(0, Math.round(Number(clean.price_inr) || 0));
+  clean.price_paise = clean.price_inr * 100;
+  clean.requires_approval = clean.requires_approval !== false;
   clean.sort = Number(clean.sort) || 0;
   if (DEMO) {
     if (row.id) { const s = db.services.find((x) => x.id === row.id && (x.mentor_id === user.id || isAdmin())); if (!s) fail('Not allowed.'); Object.assign(s, clean); save(); return delay(s); }
@@ -203,51 +234,72 @@ export async function getService(id) {
   if (DEMO) {
     const s = db.services.find((x) => x.id === id && x.active);
     const m = s && db.profiles.find((p) => p.id === s.mentor_id && p.approved);
-    return delay(s && m ? { ...s, mentor: m } : null);
+    return delay(s && m ? { ...s, mentor: publicMentor(m) } : null);
   }
   const s = ok(await sb.from('services').select('*').eq('id', id).maybeSingle());
   if (!s) return null;
-  const m = ok(await sb.from('profiles').select('*').eq('id', s.mentor_id).maybeSingle());
+  const m = ok(await sb.from('public_mentors').select('*').eq('id', s.mentor_id).maybeSingle());
   return m ? { ...s, mentor: m } : null;
 }
 
 // ================================================================ BOOKINGS
-export async function createRequest({ service_id, mentor_id, stage, message, preferred_time }) {
+export async function createRequest({ service_id, mentor_id, stage, message, preferred_time, start_at }) {
   if (DEMO) {
     const s = me(); if (!s) fail('Please log in first.');
     if (s.role !== 'student') fail('Session requests are made from student accounts.');
     const sv = db.services.find((x) => x.id === service_id);
     const m = db.profiles.find((p) => p.id === mentor_id);
-    db.requests.push({ id: uid(), student_id: s.id, mentor_id, service_id, service: sv?.category || '', service_title: sv?.title || '', duration_min: sv?.duration_min, price_inr: sv?.price_inr || 0, student_name: s.full_name, student_email: s.email, mentor_name: m?.full_name || '', stage, message, preferred_time, status: 'pending', meeting_link: '', mentor_note: '', created_at: nowIso() });
+    const price_paise = sv ? (sv.price_paise || sv.price_inr * 100) : 0;
+    const dur = sv?.duration_min || 60;
+    if (start_at && db.requests.some((r) => r.mentor_id === mentor_id && r.start_at === start_at && ['pending', 'awaiting_payment', 'confirmed', 'approved'].includes(r.status))) fail('That time was just taken. Please pick another slot.');
+    const paid = price_paise > 0 && db.settings.payments_mode !== 'off';
+    const status = paid && sv && sv.requires_approval === false ? 'awaiting_payment' : 'pending';
+    const id = uid();
+    db.requests.push({ id, student_id: s.id, mentor_id, service_id, service: sv?.category || '', service_title: sv?.title || '', duration_min: dur, price_inr: price_paise / 100, price_paise, service_type: sv?.service_type || 'consultation', student_name: s.full_name, student_email: s.email, mentor_name: m?.full_name || '', stage, message, preferred_time, start_at: start_at || null, end_at: start_at ? new Date(+new Date(start_at) + dur * 60000).toISOString() : null, status, meeting_link: '', mentor_note: '', calendly_url: '', created_at: nowIso(), updated_at: nowIso() });
     demoMail(m?.email, `New session request from ${s.full_name}`, 'booking-new-mentor');
-    demoMail(s.email, `Your request was sent to ${m?.full_name}`, 'booking-new-student');
-    save(); return delay(true);
+    demoMail(s.email, status === 'awaiting_payment' ? 'Complete payment to confirm your session' : `Your request was sent to ${m?.full_name}`, 'booking-new-student');
+    demoNotify(mentor_id, `New request from ${s.full_name}`, sv?.title || '', '/dashboard?tab=requests');
+    save(); return delay({ id, status });
   }
   const user = await getUser(); if (!user) fail('Please log in first.');
-  ok(await sb.from('requests').insert({ student_id: user.id, mentor_id, service_id, stage, message, preferred_time }));
-  return true;
+  const row = ok(await sb.from('requests').insert({ student_id: user.id, mentor_id, service_id, stage, message, preferred_time, start_at: start_at || null }).select('id,status').single());
+  return row;
 }
 
 // Requests you made (students) or received (mentors); each comes with the mentor's Calendly link.
 export async function listMyRequests() {
   if (DEMO) {
     const id = demoUserId();
-    return delay(db.requests.filter((r) => r.student_id === id || r.mentor_id === id).sort(byNewest)
-      .map((r) => ({ ...r, calendly_url: db.profiles.find((p) => p.id === r.mentor_id)?.calendly_url || '' })));
+    return delay(db.requests.filter((r) => r.student_id === id || r.mentor_id === id).sort(byNewest).map((r) => ({ ...r })));
   }
-  const rows = ok(await sb.from('requests').select('*').order('created_at', { ascending: false }));
-  const ids = [...new Set(rows.map((r) => r.mentor_id))];
-  const mentors = ids.length ? ok(await sb.from('profiles').select('id,calendly_url').in('id', ids)) : [];
-  return rows.map((r) => ({ ...r, calendly_url: mentors.find((m) => m.id === r.mentor_id)?.calendly_url || '' }));
+  // The mentor's Calendly link is copied onto the booking when it is approved (never public).
+  return ok(await sb.from('requests').select('*').order('created_at', { ascending: false }));
 }
 
 export async function updateRequest(id, patch) {
   if (DEMO) {
     const r = db.requests.find((x) => x.id === id); if (!r) fail('Request not found.');
     const u = demoUserId(); const before = r.status;
-    if (u === r.mentor_id || isAdmin()) Object.assign(r, pick(patch, ['status', 'meeting_link', 'mentor_note']));
-    else if (u === r.student_id && patch.status === 'cancelled') r.status = 'cancelled';
+    if (['confirmed', 'refunded'].includes(patch.status) && patch.status !== before) fail('This status is set by the payment system');
+    if (u === r.mentor_id || isAdmin() || demoHasPerm('bookings.manage')) {
+      Object.assign(r, pick(patch, ['status', 'meeting_link', 'mentor_note']));
+      if (r.status === 'approved' && before === 'pending') {
+        r.calendly_url = db.profiles.find((p) => p.id === r.mentor_id)?.calendly_url || '';
+        if ((r.price_paise || r.price_inr * 100) > 0 && db.settings.payments_mode !== 'off') r.status = 'awaiting_payment';
+      }
+    } else if (u === r.student_id && patch.status === 'cancelled') r.status = 'cancelled';
     else fail('Not allowed.');
+    r.updated_at = nowIso();
+    if (r.status !== before) {
+      demoNotify(r.student_id, `Booking ${r.status.replace('_', ' ')}`, r.service_title, '/dashboard?tab=requests');
+      if (r.status === 'done') { const o = (db.orders || []).find((x) => x.id === r.order_id); if (o && !o.completed_at) o.completed_at = nowIso(); }
+      if (r.status === 'awaiting_payment') demoMail(r.student_email, `Approved — complete payment for your session with ${r.mentor_name}`, 'booking-approved-pay');
+      if (r.status === 'cancelled' && before === 'confirmed' && r.order_id) {
+        db.refund_requests = db.refund_requests || [];
+        const o = db.orders.find((x) => x.id === r.order_id);
+        if (o && o.status === 'paid') db.refund_requests.push({ id: uid(), order_id: o.id, requested_by: u, amount_paise: o.amount_paise, reason: 'Booking cancelled', auto: true, status: 'requested', created_at: nowIso() });
+      }
+    }
     if (r.status !== before || patch.meeting_link !== undefined) {
       const m = db.profiles.find((p) => p.id === r.mentor_id);
       if (r.status === 'approved') demoMail(r.student_email, `Approved: your session with ${r.mentor_name}`, 'booking-approved');
@@ -280,7 +332,7 @@ export async function getSession(key) {
 }
 
 export async function seatCount(session_id) {
-  if (DEMO) return db.registrations.filter((r) => r.session_id === session_id).length;
+  if (DEMO) return db.registrations.filter((r) => r.session_id === session_id && r.status !== 'cancelled').length;
   const { data } = await sb.rpc('session_seat_count', { sid: session_id });
   return data ?? 0;
 }
@@ -291,15 +343,17 @@ export async function registerForSession({ session_id, name, email }) {
   if (DEMO) {
     const s = db.sessions.find((x) => x.id === session_id);
     if (db.registrations.some((r) => r.session_id === session_id && (r.email === email || r.user_id === user.id))) return { already: true };
-    if (s.capacity && db.registrations.filter((r) => r.session_id === session_id).length >= s.capacity) fail('Sorry, this session is full.');
-    db.registrations.push({ id: uid(), session_id, user_id: user.id, name, email, created_at: nowIso() });
-    demoMail(email, `Your seat is reserved: ${s.title}`, 'session-registered');
-    save(); return delay({ already: false });
+    if (s.capacity && db.registrations.filter((r) => r.session_id === session_id && r.status !== 'cancelled').length >= s.capacity) fail('Sorry, this session is full.');
+    const status = (s.price_paise || 0) > 0 && db.settings.payments_mode !== 'off' ? 'awaiting_payment' : 'confirmed';
+    const id = uid();
+    db.registrations.push({ id, session_id, user_id: user.id, name, email, status, created_at: nowIso() });
+    demoMail(email, status === 'confirmed' ? `Your seat is reserved: ${s.title}` : `Complete payment to reserve your seat: ${s.title}`, 'session-registered');
+    save(); return delay({ already: false, id, status });
   }
-  const { error } = await sb.from('registrations').insert({ session_id, user_id: user.id, name, email });
+  const { data, error } = await sb.from('registrations').insert({ session_id, user_id: user.id, name, email }).select('id,status').single();
   if (error?.code === '23505') return { already: true };
   if (error) fail(error);
-  return { already: false };
+  return { already: false, id: data.id, status: data.status };
 }
 
 export async function myRegistrations() {
@@ -317,8 +371,8 @@ export async function myRegistrations() {
 }
 
 export async function cancelRegistration(id) {
-  if (DEMO) { db.registrations = db.registrations.filter((r) => r.id !== id); save(); return delay(true); }
-  ok(await sb.from('registrations').delete().eq('id', id));
+  if (DEMO) { const r = db.registrations.find((x) => x.id === id); if (r) r.status = 'cancelled'; save(); return delay(true); }
+  ok(await sb.from('registrations').update({ status: 'cancelled' }).eq('id', id));
   return true;
 }
 
@@ -326,7 +380,7 @@ export async function cancelRegistration(id) {
 export const FORUM_CATEGORIES = ['Design Studio', 'Building Materials & Construction', 'Structures', 'Building Services', 'Sustainability', 'History & Theory', 'Urban Design & Planning', 'Portfolio', 'Software', 'Career', 'Internships', 'Academics & Exams', 'Other'];
 
 export async function listQuestions() {
-  if (DEMO) return delay([...db.forum_questions].sort(byNewest));
+  if (DEMO) return delay([...db.forum_questions].filter((q) => !q.hidden).sort(byNewest));
   return ok(await sb.from('forum_questions').select('*').order('created_at', { ascending: false }).limit(500));
 }
 
@@ -463,7 +517,7 @@ export async function unsubscribe(token) {
 // ================================================================ ADMIN
 export async function adminList(table) {
   if (!TABLES.includes(table)) fail('Unknown table');
-  if (DEMO) { if (!isAdmin()) fail('Admins only.'); return delay([...db[table]].sort(byNewest)); }
+  if (DEMO) { if (!isAdmin() && !demo.isStaff()) fail('Admins only.'); return delay([...db[table]].sort(byNewest)); }
   if (table === 'sessions') return ok(await sb.rpc('admin_sessions'));
   const order = table === 'posts' ? 'published_at' : 'created_at';
   return ok(await sb.from(table).select('*').order(order, { ascending: false }));
@@ -472,7 +526,7 @@ export async function adminList(table) {
 export async function adminSave(table, row) {
   if (!TABLES.includes(table)) fail('Unknown table');
   if (DEMO) {
-    if (!isAdmin()) fail('Admins only.');
+    if (!isAdmin() && !demo.isStaff()) fail('Admins only.');
     if (row.id) {
       const r = db[table].find((x) => x.id === row.id);
       const wasApproved = r.approved; Object.assign(r, row);
@@ -497,7 +551,7 @@ export async function adminSave(table, row) {
 
 export async function adminDelete(table, id) {
   if (!TABLES.includes(table)) fail('Unknown table');
-  if (DEMO) { if (!isAdmin()) fail('Admins only.'); db[table] = db[table].filter((x) => x.id !== id); save(); return delay(true); }
+  if (DEMO) { if (!isAdmin() && !demo.isStaff()) fail('Admins only.'); db[table] = db[table].filter((x) => x.id !== id); save(); return delay(true); }
   ok(await sb.from(table).delete().eq('id', id));
   return true;
 }
@@ -509,7 +563,11 @@ export async function getSettings() {
 }
 
 export async function saveSettings(s) {
-  const clean = pick(s, ['site_name', 'site_url', 'admin_email', 'sender_email', 'sender_name', 'reply_to', 'emails_on']);
+  const clean = pick(s, ['site_name', 'site_url', 'admin_email', 'sender_email', 'sender_name', 'reply_to', 'emails_on', 'payments_mode', 'razorpay_key_id',
+    'default_commission_bps', 'gateway_fee_bps', 'gst_bps', 'payout_hold_days', 'payout_two_person_paise', 'cancel_hours', 'slot_hold_minutes',
+    'support_email', 'business_name', 'business_address', 'daily_email_cap']);
+  ['default_commission_bps', 'gateway_fee_bps', 'gst_bps', 'payout_hold_days', 'payout_two_person_paise', 'cancel_hours', 'slot_hold_minutes', 'daily_email_cap']
+    .forEach((k) => { if (k in clean) clean[k] = Math.round(Number(clean[k]) || 0); });
   if (DEMO) { Object.assign(db.settings, clean); save(); return delay(true); }
   ok(await sb.from('site_settings').update(clean).eq('id', 1));
   return true;

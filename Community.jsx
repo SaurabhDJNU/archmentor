@@ -4,6 +4,17 @@ import * as api from './api.js';
 import { useAuth } from './auth.jsx';
 import { ROLE_LABEL, timeAgo, useLoad, useTitle } from './util.js';
 import { ErrorMsg, Loading } from './Bits.jsx';
+import * as platform from './platform.js';
+
+function Report({ kind, id }) {
+  const [state, setState] = useState('');
+  if (state === 'done') return <span className="small faint"> · Reported — thank you</span>;
+  return <> · <button type="button" className="small muted" onClick={async () => {
+    const reason = window.prompt('What is wrong with this post? (spam, rude, off-topic…)');
+    if (!reason || reason.trim().length < 3) return;
+    try { await platform.reportItem(kind, id, reason.trim()); setState('done'); } catch (e) { window.alert(e.message); }
+  }}>Report</button></>;
+}
 
 const TABS = [['latest', 'Latest'], ['helpful', 'Most helpful'], ['viewed', 'Most viewed'], ['unanswered', 'Unanswered']];
 const roleTag = (r) => (r && r !== 'student' ? <span className={`chip role-${r}`}>{ROLE_LABEL[r] || r}</span> : null);
@@ -169,6 +180,7 @@ export function QuestionPage() {
         <p className="small muted mt-8">Asked by {q.author_name || 'Member'} {roleTag(q.author_role)} · {timeAgo(q.created_at)} · {q.views} views</p>
         {q.body && <p className="mt-24" style={{ fontSize: 18, lineHeight: 1.7, whiteSpace: 'pre-line' }}>{q.body}</p>}
         {canDelete(q) && <button type="button" className="small" style={{ color: 'var(--bad)', minHeight: 44, marginTop: 8 }} onClick={() => del('forum_questions', q.id)}>Delete question</button>}
+        {user && q.author_id !== user.id && <p className="small muted"><Report kind="question" id={q.id} /></p>}
       </article>
 
       <section className="mt-48">
@@ -184,6 +196,7 @@ export function QuestionPage() {
               <p style={{ fontSize: 17, lineHeight: 1.7, whiteSpace: 'pre-line' }}>{a.body}</p>
               <p className="small muted mt-8">{a.author_name || 'Member'} {roleTag(a.author_role)} · {timeAgo(a.created_at)}
                 {canDelete(a) && <> · <button type="button" className="small" style={{ color: 'var(--bad)' }} onClick={() => del('forum_answers', a.id)}>Delete</button></>}
+                {user && a.author_id !== user.id && <Report kind="answer" id={a.id} />}
               </p>
             </div>
           </div>

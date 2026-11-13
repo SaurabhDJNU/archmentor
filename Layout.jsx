@@ -4,6 +4,8 @@ import { useAuth } from './auth.jsx';
 import * as api from './api.js';
 import { SOCIAL } from './config.js';
 import { Close, Instagram, LinkedIn, Search, WhatsApp, YouTube } from './Icons.jsx';
+import Notifications from './Notifications.jsx';
+import InstallApp from './InstallApp.jsx';
 
 export function Brand({ size }) {
   return <span className="brand" style={size ? { fontSize: size } : undefined}><b>Arch</b><span>Mentor</span></span>;
@@ -32,7 +34,7 @@ function DemoBar() {
   return (
     <div className="demo-bar" role="note">
       <div className="wrap">
-        <span>Demo mode: data is saved only in this browser and no real emails are sent. Log in as <b>student@</b>, <b>mentor@</b>, <b>professional@</b> or <b>admin@demo.archmentor</b>, password <b>demo1234</b>.</span>
+        <span>Demo mode: data stays in this browser, no real emails or payments. Log in as <b>student@</b>, <b>mentor@</b>, <b>professional@</b>, <b>staff@</b>, <b>finance@</b> or <b>admin@demo.archmentor</b>, password <b>demo1234</b>.</span>
         <button type="button" onClick={() => { api.resetDemo(); refresh(); window.location.reload(); }}>Reset demo data</button>
       </div>
     </div>
@@ -72,12 +74,13 @@ function Header() {
         <nav className="nav" aria-label="Main">
           <NavLink to="/mentors">Mentors</NavLink>
           <NavLink to="/sessions">Sessions</NavLink>
+          <NavLink to="/portfolio">Portfolio review</NavLink>
           <NavLink to="/community">Community</NavLink>
           <NavLink to="/journal">Journal</NavLink>
-          <NavLink to="/videos">Videos</NavLink>
+          <NavLink to="/opportunities">Opportunities</NavLink>
           {user ? (
             <>
-              <NavLink to="/dashboard">{profile?.role === 'admin' ? 'Admin' : 'Dashboard'}</NavLink>
+              <NavLink to={['admin', 'staff'].includes(profile?.role) ? '/staff' : '/dashboard'}>{['admin', 'staff'].includes(profile?.role) ? 'Workspace' : 'Dashboard'}</NavLink>
               <button type="button" className="muted" style={{ minHeight: 36 }} onClick={async () => { await api.signOut(); navigate('/'); }}>Log out</button>
             </>
           ) : (
@@ -88,6 +91,7 @@ function Header() {
           )}
         </nav>
         <div style={{ display: 'flex', alignItems: 'center' }}>
+          {user && <Notifications />}
           <Link to="/journal?search=1" aria-label="Search the Journal" className="icon-btn" style={{ marginLeft: -12 }}><Search /></Link>
           <Socials />
         </div>
@@ -109,6 +113,9 @@ function Footer() {
           <Link to="/mentors">Find mentors</Link>
           <Link to="/sessions">Live sessions</Link>
           <Link to="/community">Community</Link>
+          <Link to="/portfolio">Portfolio review</Link>
+          <Link to="/opportunities">Opportunities</Link>
+          <Link to="/resources">Resources</Link>
           <Link to="/videos">Videos</Link>
           <Link to="/journal">Journal</Link>
         </nav>
@@ -117,13 +124,15 @@ function Footer() {
           <Link to="/signup?role=mentor">Become a mentor</Link>
           <Link to="/community/ask">Ask the community</Link>
           <Link to="/write">Write for the Journal</Link>
+          <Link to="/support">Contact &amp; support</Link>
           <Link to="/login">Log in</Link>
-          <Link to="/signup">Create account</Link>
+          <Link to="/staff/login">Team sign-in</Link>
         </nav>
         <div className="stack gap-8 muted">
           <Socials />
+          <InstallApp compact />
           <span>© {new Date().getFullYear()} ArchMentor</span>
-          <span>Built for the architecture student community.</span>
+          <span><Link to="/legal/privacy">Privacy</Link> · <Link to="/legal/terms">Terms</Link> · <Link to="/legal/refunds">Refunds</Link></span>
         </div>
       </div>
     </footer>
@@ -142,6 +151,12 @@ function ScrollToTop() {
   return null;
 }
 
+// Short fade between pages (off when the visitor prefers reduced motion — see styles.css)
+function RouteFade({ children }) {
+  const { pathname } = useLocation();
+  return <div key={pathname.split('/').slice(0, 3).join('/')} className="route-fade">{children}</div>;
+}
+
 export default function Layout() {
   return (
     <>
@@ -150,8 +165,20 @@ export default function Layout() {
       <DemoBar />
       <Notice />
       <Header />
-      <main id="main"><Outlet /></main>
+      <main id="main"><RouteFade><Outlet /></RouteFade></main>
       <Footer />
     </>
+  );
+}
+
+// Shown instead of the site when a production build has no Supabase settings (fails closed).
+export function NotConfigured() {
+  return (
+    <div className="wrap page-top" style={{ maxWidth: 680 }}>
+      <p style={{ marginBottom: 24 }}><Brand /></p>
+      <h1 className="h-l">This site is not connected yet.</h1>
+      <p className="lead mt-24">The database settings are missing from this build, so nothing is shown and nothing is saved. Add <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code> in your hosting settings and deploy again (README → Go live).</p>
+      <p className="small muted mt-24">For a preview with sample data instead, set <code>VITE_DEMO_MODE=true</code>.</p>
+    </div>
   );
 }
